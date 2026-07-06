@@ -315,7 +315,9 @@ context for *your* verification.
 ## Verify before "done"
 
 - **Run the assembly gate**: `assembly_check.py` (pairwise interference, clearance,
-  motion sweep) + `checks.py` design invariants + the insertion-path and torque-path
+  motion sweep) + `fitmap.py` (pairwise CLEARANCE MEASUREMENT + contact patches — booleans
+  prove non-overlap, not non-press; a gearbox passed every boolean while seized at 0.00°
+  backlash) + `checks.py` design invariants + the insertion-path and torque-path
   audits from `references/assembly-verification.md`. "Watertight and looks right from six
   angles" has shipped unassemblable parts to plastic more than once; the gate is what
   catches lugs bigger than notches, sealed pockets, and freewheeling bores.
@@ -339,9 +341,11 @@ context for *your* verification.
   bores + manual override, press-fits / clearances / snap vs friction joints, screws/nut traps,
   bearings, one-way clutches, motor coupling, and which of these *must* be dialed in on a test print.
 - **`references/assembly-verification.md`**, the pre-export gate: interference + motion-sweep
-  audit, insertion-path and torque-path checklists, design-invariant tests, the multi-agent
-  pre-print review, the spatial-language/orientation protocol, and render-legibility rules
-  (bottom view, ghost mode hides interference, per-part colors).
+  audit, the FIT MAP (`fitmap.py`: measured clearance/press + contact patches per pair, gear
+  backlash measurement, insertion-PATH sweeps — states vs processes), insertion-path and
+  torque-path checklists, design-invariant tests, the multi-agent pre-print review, the
+  spatial-language/orientation protocol, and render-legibility rules (bottom view, ghost mode
+  hides interference, per-part colors).
 - **`references/csg-robustness.md`**, the trimesh/manifold3d boolean playbook (single-call
   booleans, morphological close, coincident-geometry jitter, artifact diagnosis), the
   build123d on-ramp, and iteration-speed tactics (mesh caching, PREVIEW mode, coarse-proxy

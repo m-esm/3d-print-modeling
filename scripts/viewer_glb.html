@@ -58,6 +58,15 @@
     <span style="color:#8fc8fb">H = height (Z)</span>
   </div>
   <label style="margin-top:8px">explode <input type="range" id="explode" min="0" max="1" step="0.01" value="0"></label>
+  <div id="fitsec" hidden>
+    <hr>
+    <label><input type="checkbox" id="t_fits"> &nbsp;fits · clearance/press map</label>
+    <div id="fitrows" style="max-height:180px;overflow:auto;margin-top:4px"></div>
+    <div style="opacity:.55;font-size:10px;margin-top:3px">
+      <span style="color:#ff6b6b">■</span> press · <span style="color:#ffb300">■</span> &lt;0.15 ·
+      <span style="color:#ffd866">■</span> &lt;0.4 · <span style="color:#6ecf7a">■</span> free —
+      patches trace contact areas; click a row to isolate</div>
+  </div>
   <hr>
   <label><input type="checkbox" id="t_section"> &nbsp;section cut
     <select id="sec_axis"><option>X</option><option>Y</option><option>Z</option></select></label>
@@ -277,6 +286,57 @@ let last=performance.now();
   renderer.render(scene,camera);
   labelRnd.render(scene,camera);
 })(last);
+
+// ---- FITS overlay: fit_report.json (scripts/fitmap.py) → per-pair contact-patch point clouds,
+// colored by clearance; rows tightest-first; click a row to isolate one pair. Silent if absent. ----
+(async()=>{
+  let fits=null;
+  try{ const r=await fetch('fit_report.json',{cache:'no-store'}); if(r.ok) fits=await r.json(); }catch(e){}
+  if(!fits || !fits.length) return;
+  document.getElementById('fitsec').removeAttribute('hidden');
+  const colOf=d=>d<0.005?'#ff6b6b':d<0.15?'#ffb300':d<0.4?'#ffd866':'#6ecf7a';
+  let cloud=null;
+  function build(){
+    cloud=new THREE.Group(); cloud.userData.byPair={};
+    fits.forEach((r,idx)=>{
+      const pts=(r.patch&&r.patch.length)?r.patch:[[r.at[0],r.at[1],r.at[2],r.mm]];
+      const pos=new Float32Array(pts.length*3), col=new Float32Array(pts.length*3);
+      pts.forEach((q,i)=>{ pos[i*3]=q[0];pos[i*3+1]=q[1];pos[i*3+2]=q[2];
+        const c=new THREE.Color(parseInt(colOf(q[3]).slice(1),16));
+        col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b; });
+      const g=new THREE.BufferGeometry();
+      g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+      g.setAttribute('color',new THREE.BufferAttribute(col,3));
+      const m=new THREE.Points(g,new THREE.PointsMaterial({size:Math.max(1.2,diag*0.006),vertexColors:true,
+        transparent:true,opacity:.9,depthTest:false,sizeAttenuation:true}));
+      m.renderOrder=999; cloud.add(m); cloud.userData.byPair[idx]=m;
+    });
+    scene.add(cloud);
+  }
+  function focus(idx){ if(!cloud)return;
+    Object.entries(cloud.userData.byPair).forEach(([i,m])=>{
+      m.material.opacity=(idx==null||+i===idx)?.95:.06;
+      m.material.size=(+i===idx)?Math.max(2,diag*0.01):Math.max(1.2,diag*0.006); }); }
+  const host=document.getElementById('fitrows');
+  fits.forEach((r,idx)=>{
+    const el=document.createElement('div');
+    el.style.cssText='display:flex;gap:6px;align-items:center;padding:2px 4px;border-radius:6px;cursor:pointer;font:10px/1.4 var(--mono)';
+    const c=r.press?'#ff6b6b':colOf(r.mm);
+    el.innerHTML='<span style="width:8px;height:8px;border-radius:50%;background:'+c+';flex:0 0 auto"></span>'
+      +'<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.a+' ↔ '+r.b+'</span>'
+      +'<span style="margin-left:auto;color:'+c+'">'+(r.press?('PRESS '+(-r.mm).toFixed(2)):r.mm.toFixed(2))+'</span>';
+    el.onmouseenter=()=>el.style.background='rgba(255,255,255,.055)';
+    el.onmouseleave=()=>el.style.background=el.dataset.on?'rgba(92,199,212,.16)':'';
+    el.onclick=()=>{ const on=el.dataset.on;
+      host.querySelectorAll('div').forEach(d=>{delete d.dataset.on; d.style.background='';});
+      if(on){ focus(null); } else { el.dataset.on='1'; el.style.background='rgba(92,199,212,.16)'; focus(idx); } };
+    host.appendChild(el);
+  });
+  document.getElementById('t_fits').addEventListener('change',e=>{
+    if(e.target.checked){ if(!cloud) build(); cloud.visible=true; }
+    else if(cloud){ cloud.visible=false; focus(null); }
+  });
+})();
 
 // auto-reload when the build script rewrites the model
 let stamp=null;

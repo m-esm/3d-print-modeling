@@ -34,6 +34,49 @@ none violate watertightness.
    captures (across-flats + depth), driver access to every head. Zero-bite pilot holes
    ("every pilot is a clearance hole, no screw bites anywhere") pass every render.
 
+## Fit map: clearance is a measurement, not a boolean (fitmap.py)
+
+The gate above has a blind spot that shipped a seized gearbox: **boolean "no overlap"
+proves parts don't collide, NOT that they aren't pressed.** A printed planetary passed
+every pairwise intersection check while its planets sat in the ring at 0.00° of backlash
+(the tips bottomed radially; a phase-scan minimum of "0.0013 mm²" had been read as zero
+when it was a graze). Assembled, the stage would have ground itself to death. The user's
+eyeball caught it; the numbers had said "verified". Three rules fell out of that failure:
+
+1. **Measure fits, don't boolean them.** `scripts/fitmap.py assembly.glb` samples every
+   close pair's surfaces and takes signed distances: per-pair minimum clearance or press
+   depth, the closest-approach point, and a **contact patch** (every sample within 0.6 mm,
+   with its own clearance) tracing the SHAPE of each contact — a rib line, a bore ring,
+   gear-flank stripes. Pair enumeration is automatic, which is the point: its first run on
+   a real assembly caught three defects that hand-picked boolean checks had missed (a
+   motor's nose boss pressing 0.3 into a gear hub, a gearbox axle-pin end stabbing a
+   planet 0.55, a ring-cage arc buried 0.5 in the OTHER clamshell half — nobody had
+   thought to check against the lid). Exit code is nonzero when any press exists: designed
+   press fits get whitelisted by inspection, every other press row is a bug.
+2. **For gears, measure BACKLASH from the built meshes**: section the exported STLs at the
+   tooth band, then rotate-until-contact in BOTH directions (shapely `rotate` + overlap
+   bisection). A healthy mesh has symmetric play in the design ballpark; 0.00° in either
+   direction is a bind even when booleans pass. Sun/planet ~1°, planet/ring ~2.7° were the
+   healthy numbers on a m1.0 printed planetary; internal (ring) teeth print undersize, so
+   err loose on the fixed-ring side where slop is harmless.
+3. **Verify the insertion PATH, not just the assembled state** — states vs processes. A
+   carrier plate cleared the assembled ring by 0.35 mm yet could NEVER be installed: its
+   Ø30.8 disc had to pass the ring's Ø28 tooth-tip opening. Sweep each part along its real
+   insertion axis (translate in steps, boolean at every step, expect 0.000 the whole way),
+   with the parts present at that stage of assembly (the lid is off while gears go in).
+   Two standard planetary facts while you're there: gears enter internal teeth AXIALLY
+   while meshed (like a spline), so planets always have a path — smooth discs larger than
+   the tooth-tip circle do not; and a part can be trapped by a feature added LATER for
+   another part (a cage's seat ledge sealed the pinion's only entry — the fix was a
+   top-loading shaft with the cage hanging from a flange).
+
+The companion viewer (`scripts/viewer_glb.html`) auto-detects `fit_report.json` next to
+the model and adds a **fits** section: rows sorted tightest-first, and a 3D overlay of the
+contact patches colored by clearance (red press / amber <0.15 / yellow <0.4 / green free),
+drawn through the housing; click a row to isolate one pair's patch. The overview reads
+like a CAD contact heatmap — the clamshell split traces as a ring, gear meshes as flank
+stripes — and makes "which surfaces rub, and how hard" a thing you see rather than infer.
+
 ## Design-invariant checks: unit tests for geometry
 
 User-approved features get silently deleted by later, unrelated edits. It happened

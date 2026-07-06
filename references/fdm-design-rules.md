@@ -43,6 +43,23 @@ on internal features is unremovable and ruins surfaces. Techniques that worked:
   *flush into* the flat face (recess opens upward when flipped) lands the face flat on the bed and
   drops auto-support to zero. A raised feature on the bed-facing side is a stilts-and-bridge trap.
 - **Narrow-base / wide-top dovetail tongues self-support**; wide-base/narrow-top overhangs don't.
+- **Never print a gear with its pin/journal attached, split them and join with a square/hex
+  fit.** A gear modeled as one piece with a coaxial pin has no good orientation: axis-vertical,
+  the gear disc is a large horizontal overhang cantilevered around the pin (the slicer packs
+  support under the whole face and around the journal, longer print, wasted material, rough
+  support scars exactly where you need smooth tooth flanks and a smooth bearing journal);
+  pin-down is worse. Design them as SEPARATE parts from the start: the gear prints flat on
+  the bed (best tooth quality, zero support), the pin/journal prints on its own, usually
+  axis-vertical for roundness. Join through an anti-rotation fitting: a **square or hex
+  pocket/bore in the gear hub** and a matching square/hex boss section on the pin, so torque
+  is carried by the flats, not by glue or friction on a round bore (which freewheels, see the
+  torque-path rule in mechanisms-and-fits). Start the fit at ~0.15-0.25 mm clearance per flat
+  and dial on a test print; add a lead-in chamfer on the boss, and retain axially with a
+  shoulder + glue dab, an E-clip groove, or a screw from the far side. The one-piece
+  exception: a journal on ONE side only, printed gear-face-down with the pin rising
+  vertically, is self-supporting and needs no split; the split is mandatory when the pin
+  extends both sides, when the pin-side gear face needs bed-quality finish, or when a long
+  thin pin would wobble during the print.
 - **Diagnose floating regions with a bed-facing heightmap**: raycast straight down onto the part
   in its print orientation; any region sitting above the lowest contact plane is a mid-air bridge
   that will fail. This caught a motor-enclosure roof floating 3 mm above the bed, a ~23 cm² mid-air

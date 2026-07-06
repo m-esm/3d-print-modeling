@@ -294,15 +294,20 @@ let last=performance.now();
   try{ const r=await fetch('fit_report.json',{cache:'no-store'}); if(r.ok) fits=await r.json(); }catch(e){}
   if(!fits || !fits.length) return;
   document.getElementById('fitsec').removeAttribute('hidden');
-  const colOf=d=>d<0.005?'#ff6b6b':d<0.15?'#ffb300':d<0.4?'#ffd866':'#6ecf7a';
+  // TEAL = allowed contact (seats/presses via fitmap --allow) · RED = unexpected contact only ·
+  // amber/yellow/green = clearance scale. Red always means "look at this".
+  const stOf=r=>{const t=r.press||r.mm<=0.005; return t?(r.designed?'ok':'bad'):(r.mm<0.15?'tight':r.mm<0.4?'run':'free');};
+  const STC={ok:'#5cc7d4',bad:'#ff6b6b',tight:'#ffb300',run:'#ffd866',free:'#6ecf7a'};
+  const colOf=(d,st)=>st==='ok'?STC.ok:(d<0.005?(st==='bad'?STC.bad:STC.tight):d<0.15?STC.tight:d<0.4?STC.run:STC.free);
   let cloud=null;
   function build(){
     cloud=new THREE.Group(); cloud.userData.byPair={};
     fits.forEach((r,idx)=>{
       const pts=(r.patch&&r.patch.length)?r.patch:[[r.at[0],r.at[1],r.at[2],r.mm]];
       const pos=new Float32Array(pts.length*3), col=new Float32Array(pts.length*3);
+      const st=stOf(r);
       pts.forEach((q,i)=>{ pos[i*3]=q[0];pos[i*3+1]=q[1];pos[i*3+2]=q[2];
-        const c=new THREE.Color(parseInt(colOf(q[3]).slice(1),16));
+        const c=new THREE.Color(parseInt(colOf(q[3],st).slice(1),16));
         col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b; });
       const g=new THREE.BufferGeometry();
       g.setAttribute('position',new THREE.BufferAttribute(pos,3));
@@ -321,10 +326,11 @@ let last=performance.now();
   fits.forEach((r,idx)=>{
     const el=document.createElement('div');
     el.style.cssText='display:flex;gap:6px;align-items:center;padding:2px 4px;border-radius:6px;cursor:pointer;font:10px/1.4 var(--mono)';
-    const c=r.press?'#ff6b6b':colOf(r.mm);
+    const st=stOf(r), c=STC[st];
     el.innerHTML='<span style="width:8px;height:8px;border-radius:50%;background:'+c+';flex:0 0 auto"></span>'
       +'<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.a+' ↔ '+r.b+'</span>'
-      +'<span style="margin-left:auto;color:'+c+'">'+(r.press?('PRESS '+(-r.mm).toFixed(2)):r.mm.toFixed(2))+'</span>';
+      +'<span style="margin-left:auto;color:'+c+'">'
+      +(st==='ok'?(r.press?'press '+(-r.mm).toFixed(2):'seated'):st==='bad'?((r.press?'PRESS '+(-r.mm).toFixed(2):'TOUCH')+' !'):r.mm.toFixed(2))+'</span>';
     el.onmouseenter=()=>el.style.background='rgba(255,255,255,.055)';
     el.onmouseleave=()=>el.style.background=el.dataset.on?'rgba(92,199,212,.16)':'';
     el.onclick=()=>{ const on=el.dataset.on;

@@ -52,7 +52,11 @@ eyeball caught it; the numbers had said "verified". Three rules fell out of that
    motor's nose boss pressing 0.3 into a gear hub, a gearbox axle-pin end stabbing a
    planet 0.55, a ring-cage arc buried 0.5 in the OTHER clamshell half — nobody had
    thought to check against the lid). Exit code is nonzero when any press exists: designed
-   press fits get whitelisted by inspection, every other press row is a bug.
+   press fits get whitelisted by inspection, every other press row is a bug. The same
+   whitelist doubles as a CONTACT AUDIT — "red only where it should be": every pair that
+   TOUCHES (clearance ≤ 0.005) must be a named, intended seat or press (`--allow a:b`);
+   an unexpected touching pair fails the exit code just like an unlisted press. Run it in
+   the build so a new contact anywhere in the assembly announces itself immediately.
 2. **For gears, measure BACKLASH from the built meshes**: section the exported STLs at the
    tooth band, then rotate-until-contact in BOTH directions (shapely `rotate` + overlap
    bisection). A healthy mesh has symmetric play in the design ballpark; 0.00° in either

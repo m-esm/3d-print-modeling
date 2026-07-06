@@ -113,7 +113,7 @@ def main():
     ap.add_argument("--far", type=float, default=2.0, help="drop pairs whose closest approach exceeds this (mm)")
     ap.add_argument("--skip", nargs="*", default=[], help="substring name filters to exclude (context parts)")
     ap.add_argument("--allow", nargs="*", default=[], metavar="A:B",
-                    help="designed press pairs (whitelisted, don't fail the exit code)")
+                    help="pairs ALLOWED to touch/press (designed seats + press fits); anything else that touches fails")
     args = ap.parse_args()
 
     meshes = placed_meshes(args.model, skip=[s.lower() for s in args.skip])
@@ -121,14 +121,20 @@ def main():
     rows = fit_map(meshes, near=args.near, patch_band=args.patch,
                    samples=args.samples, far=args.far, designed=designed)
     json.dump(rows, open(args.out, "w"), indent=1)
-    presses = [r for r in rows if r["press"]]
-    bad = [r for r in presses if not r["designed"]]
-    print("wrote %s: %d close pairs, %d press (%d designed)" % (
-        args.out, len(rows), len(presses), len(presses) - len(bad)))
-    for r in presses:
-        print("  PRESS %.2f%s  %s <-> %s at %s  (boolean %.2f mm^3)" % (
-            -r["mm"], " [designed]" if r["designed"] else "", r["a"], r["b"], r["at"], r["vol"]))
-    return 1 if bad else 0    # nonzero exit only for UNLISTED presses
+    # CONTACT AUDIT: every pair that TOUCHES (min clearance <= 0.005, or a confirmed press) must be
+    # on the --allow whitelist. "Red only where it should be": an unexpected contact is how real fit
+    # bugs announce themselves (four found this way on one assembly in one day).
+    touching = [r for r in rows if r["press"] or r["mm"] <= 0.005]
+    bad = [r for r in touching if not r["designed"]]
+    print("wrote %s: %d close pairs, %d touching (%d designed)" % (
+        args.out, len(rows), len(touching), len(touching) - len(bad)))
+    for r in touching:
+        kind = ("PRESS %.2f (boolean %.2f mm^3)" % (-r["mm"], r["vol"])) if r["press"] else "touching"
+        print("  %s%s  %s <-> %s at %s" % ("ok " if r["designed"] else "!! ",
+              kind, r["a"], r["b"], r["at"]))
+    if bad:
+        print("!! CONTACT AUDIT FAILED: fix the geometry, or --allow a:b only for designed seats/presses")
+    return 1 if bad else 0    # nonzero exit for any UNLISTED touching/press pair
 
 
 if __name__ == "__main__":

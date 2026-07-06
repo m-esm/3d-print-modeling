@@ -1,0 +1,107 @@
+# Assembly verification: the gate between "renders nicely" and "actually assembles"
+
+The single most expensive failure mode across every project: **parts that pass watertight
+checks, feature-size reports, and six-angle renders, and still cannot be physically
+assembled.** Real examples that shipped to plastic: bayonet lugs at r14 against entry
+notches opening to r9; a cradle whose lightening window gutted its own trunnion seat; a
+plain round bore on a flatted double-D motor shaft (freewheels); spur teeth meshed against
+a helical worm (binds); a "lid" whose bearing pocket was a sealed internal void; a motor
+housing with no opening the motor fits through; a worm wheel freewheeling on a plain bore
+while the review called the drive "done". None of these are visible in an iso render, and
+none violate watertightness.
+
+## The gate (run before every export, and before saying "done")
+
+1. **`assembly_check.py` on the assembly GLB** (bundled in `scripts/`): pairwise boolean
+   intersection (any un-whitelisted overlap FAILS, exit 1, make it a Makefile gate) +
+   min-clearance warnings below 0.3 mm. Whitelist only meshing gear teeth and designed
+   press-fit interference via `--allow a:b`.
+2. **Motion sweep for anything that moves**: `--sweep part=AXIS:start:end:steps` re-runs
+   the overlap check across the whole travel. "Tilt binds at -11 deg against a +/-30 spec,
+   and the committed preview pose itself collides" is exactly what this catches. Sweep to
+   the EXTREMES of travel, not the rest pose.
+3. **Insertion-path audit, part by part** (eyes + section cuts, no script can do this):
+   for every bought part (bearing, motor, board, battery, nut), answer "through which
+   opening does it enter, in what order, and does anything printed later block it?" A part
+   can have perfect clearance in its final pose and be unreachable. If assembly order
+   matters, write it into `docs/ASSEMBLY.md` while checking.
+4. **Torque-path audit for every driven part**: walk the chain motor -> output and name
+   the feature that carries torque at each interface (D-flat, key, spline, designed
+   interference + retention). "Plain bore + friction" is a freewheel, and "press-fit on a
+   smooth rod" creeps loose in plastic. `checks_template.py::bore_is_keyed` encodes the
+   numeric version.
+5. **Fastener reach**: screw length vs stack height per joint, nut pocket actually
+   captures (across-flats + depth), driver access to every head. Zero-bite pilot holes
+   ("every pilot is a clearance hole, no screw bites anywhere") pass every render.
+
+## Design-invariant checks: unit tests for geometry
+
+User-approved features get silently deleted by later, unrelated edits. It happened
+repeatedly (a manual override removed three times, each caught by the user, not the
+tooling; agent fix-ledgers marked `[~]` for edits that never applied). The fix is
+mechanical, not attentional:
+
+- Keep `src/checks.py` (start from `scripts/checks_template.py`), called at the END of
+  every `build.py` run.
+- **The same turn the user approves a requirement, add one check for it** ("override
+  present", "tilt reaches +/-30", "pocket open from +Z", "fits the 256 bed").
+- Never delete or weaken a check without explicit user sign-off. A failing check means
+  the geometry regressed.
+- This also makes subagent fix-ledgers verifiable: an item is done when its check passes,
+  not when the agent says so.
+
+## The multi-agent pre-print review (promote it from rescue to routine)
+
+The highest-value pattern observed in real sessions was ALWAYS invoked too late, after a
+failed print or a user revolt: 3+ parallel review agents, each with a distinct lens,
+measuring the actual STLs/GLB and reporting numbered, severity-ranked defects. One such
+review found ~20 real defects in a "committed" model; another caught a 67-degree
+over-throw and unprintable 0.38 mm gear tips before the next print. Run it as a standard
+step before the FIRST print of any multi-part mechanism (needs the user's multi-agent
+opt-in):
+
+- **geometry probe agent**: loads meshes, measures the claimed fits/clearances/travels
+- **assembly-walk agent**: attempts the insertion-path audit part by part
+- **mechanical-loads agent**: torque paths, lever arms, weak features, printability of
+  load-bearing details
+Agents must return MEASURED numbers with part/coordinate citations, not impressions.
+Keep fix agents' scopes small (one subsystem each) and their output terse; a 64k-output
+fix agent dies mid-edit and leaves a lying ledger.
+
+## Orientation protocol (spatial language is the #2 iteration burner)
+
+Verbal pose instructions map ambiguously onto 3D. Real costs: six correction rounds to
+pose two L-brackets ("you got it wrong again"), resolved only by asking which two ends
+touch; "above" meaning +Y along a door, implemented as +Z; "turn upside down" implemented
+as face-down; an imported differential mounted pinion-down and called "finalized".
+Rules:
+
+- **Restate every spatial instruction in axis terms before implementing it**: "long tip
+  of L1 touches short tip of L2, both flat on XY, opening toward +X. Correct?" One
+  question beats four wrong builds. When the user corrects you twice on the same pose,
+  STOP iterating and ask which faces/edges mate.
+- **Never compose rotations from memory.** Rx180 then Ry180 equals Rz180; if you can't
+  state the net axis-angle, print the transform and check extents before rendering.
+- **Define rotation constants with degrees**, `R(deg)` helpers, not fractions of a TAU
+  someone may have mis-defined (`TAU = np.pi` silently halved every rotation in a real
+  project: 90-degree turns became 45, "flips" laid parts on their backs).
+- **For imported/foreign meshes, interrogate, don't eyeball**: print `mesh.extents` and
+  `mesh.bounds`, probe candidate bore axes for solid fraction ("roll=90 gives solid
+  fraction 0.00 = clean through-bore"), and render with other parts hidden. Renders of
+  unfamiliar geometry get axes mislabeled ("that 'side' tag is actually end-on").
+
+## Render legibility (make the look-at-it loop able to see)
+
+- **Bottom view is part of the standard set** (`shoot.py` now renders it). Bed-facing
+  bugs, floating discs, raised features that should be engraved, hide from iso/front/side.
+- **Distinct per-part colors always**; single-color renders forced a session to debug an
+  LCD orientation numerically because the screen couldn't be told from the head.
+- **Ghost/translucent mode HIDES interference.** It exists to show internal layout, not
+  to verify it: a translucent shell rendered "fine" over parts breaching its wall by 1 mm.
+  Contact and breach questions get NUMBERS (`assembly_check.py`, `wallcheck.py`), never a
+  ghost render. When the user says two parts touch and the render looks clear, run the
+  numeric check before arguing; occlusion and translucency have both produced false
+  "it's fine" reads.
+- **Isolate to diagnose**: a debug render mode that hides occluders (wheels off, lid off)
+  is worth the two minutes it takes; welded-in geometry is invisible inside a 675k-face
+  shell.

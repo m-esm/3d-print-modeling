@@ -54,7 +54,10 @@ def placed_meshes(path, skip=()):
     return out
 
 
-def fit_map(meshes, near=2.5, patch_band=0.6, samples=2600, far=2.0, seed=0, max_patch=260):
+def fit_map(meshes, near=2.5, patch_band=0.6, samples=2600, far=2.0, seed=0, max_patch=260,
+            designed=()):
+    """designed: iterable of frozenset({a, b}) name pairs whose press is INTENDED (whitelist)."""
+    designed = set(designed)
     names = sorted(meshes)
     rows = []
     rng = np.random.default_rng(seed)
@@ -75,13 +78,24 @@ def fit_map(meshes, near=2.5, patch_band=0.6, samples=2600, far=2.0, seed=0, max
             k = int(np.argmax(d))
             if d[k] < -far:
                 continue                                   # nothing meaningfully close
+            vol = 0.0
+            if d[k] > 0.005:
+                # BOOLEAN-CONFIRM presses: the sampler can glitch at sharp corners (a real case
+                # reported PRESS 0.09 on a centered blade); the intersection volume is the truth
+                try:
+                    iv = trimesh.boolean.intersection([a, b])
+                    vol = float(iv.volume) if iv is not None and len(iv.faces) else 0.0
+                except Exception:
+                    vol = -1.0                             # unknown — keep the press flag
             sel = np.where(d > -patch_band)[0]
             if len(sel) > max_patch:
                 sel = rng.choice(sel, max_patch, replace=False)
             rows.append(dict(
                 a=names[i], b=names[j],
                 mm=round(float(-d[k]), 3),
-                press=bool(d[k] > 0.005),
+                press=bool(d[k] > 0.005 and vol != 0.0),
+                vol=round(vol, 2),
+                designed=frozenset((names[i], names[j])) in designed,
                 at=[round(float(x), 2) for x in pts[k]],
                 patch=[[round(float(pts[q][0]), 2), round(float(pts[q][1]), 2),
                         round(float(pts[q][2]), 2), round(float(-d[q]), 3)] for q in sel]))
@@ -98,17 +112,23 @@ def main():
     ap.add_argument("--samples", type=int, default=2600, help="surface samples per pair")
     ap.add_argument("--far", type=float, default=2.0, help="drop pairs whose closest approach exceeds this (mm)")
     ap.add_argument("--skip", nargs="*", default=[], help="substring name filters to exclude (context parts)")
+    ap.add_argument("--allow", nargs="*", default=[], metavar="A:B",
+                    help="designed press pairs (whitelisted, don't fail the exit code)")
     args = ap.parse_args()
 
     meshes = placed_meshes(args.model, skip=[s.lower() for s in args.skip])
+    designed = {frozenset(p.split(":", 1)) for p in args.allow}
     rows = fit_map(meshes, near=args.near, patch_band=args.patch,
-                   samples=args.samples, far=args.far)
+                   samples=args.samples, far=args.far, designed=designed)
     json.dump(rows, open(args.out, "w"), indent=1)
     presses = [r for r in rows if r["press"]]
-    print("wrote %s: %d close pairs, %d press" % (args.out, len(rows), len(presses)))
+    bad = [r for r in presses if not r["designed"]]
+    print("wrote %s: %d close pairs, %d press (%d designed)" % (
+        args.out, len(rows), len(presses), len(presses) - len(bad)))
     for r in presses:
-        print("  PRESS %.2f  %s <-> %s at %s" % (-r["mm"], r["a"], r["b"], r["at"]))
-    return 1 if presses else 0    # nonzero exit if any press — whitelist by inspection
+        print("  PRESS %.2f%s  %s <-> %s at %s  (boolean %.2f mm^3)" % (
+            -r["mm"], " [designed]" if r["designed"] else "", r["a"], r["b"], r["at"], r["vol"]))
+    return 1 if bad else 0    # nonzero exit only for UNLISTED presses
 
 
 if __name__ == "__main__":

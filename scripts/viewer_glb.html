@@ -336,6 +336,8 @@ let last=performance.now();
     if(e.target.checked){ if(!cloud) build(); cloud.visible=true; }
     else if(cloud){ cloud.visible=false; focus(null); }
   });
+  const tf_=document.getElementById('t_fits'); tf_.checked=true;    // ON by default when a report exists
+  tf_.dispatchEvent(new Event('change'));
 })();
 
 // auto-reload when the build script rewrites the model

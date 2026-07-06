@@ -21,8 +21,9 @@ for meshes. See "Pick the engine first" below.
    This is the non-negotiable verification step, not optional polish. Numeric and watertight
    checks miss the bugs that actually bite, wrong orientation, parts floating, collisions,
    holes not piercing, features distorted, a stretched-wrong axis. The drill:
-   - `python3 serve.py 8765` (once), then `python3 shoot.py <model>.glb chk` after each rebuild.
-   - That writes **iso / front / side / top + two section cuts** into **`.claude/renders/chk_*.png`**
+   - `python3 serve.py` (once; port auto-derived per project, prints a LAN URL for the
+     user's phone), then `python3 shoot.py <model>.glb chk` after each rebuild.
+   - That writes **iso / front / side / top / BOTTOM + two section cuts** into **`.claude/renders/chk_*.png`**
      (the script always renders there, never the project root, so screenshots don't pollute the
      working dir). One angle is never enough, a part can look right head-on and be floating or
      colliding when seen from the side; the section cuts are how you confirm internal features
@@ -42,6 +43,18 @@ for meshes. See "Pick the engine first" below.
 4. **Keep a project `CLAUDE.md`** that records the mechanical intent, key numbers (and the
    tradeoff behind each), print orientation, and every hard-won gotcha. The next session reads
    it first. Update it as decisions land, don't wait for the end.
+5. **Gate every export on the assembly audit + design invariants.** Watertight + pretty
+   renders have repeatedly passed on assemblies that could not physically be assembled
+   (lugs bigger than their notches, sealed "lids", freewheeling plain bores). Before any
+   export: `python3 src/assembly_check.py web/assembly.glb` (pairwise interference +
+   clearance + motion sweep, bundled) and `checks.py` design invariants (one assertion per
+   user-approved feature, added the same turn it's approved, so features can't silently
+   regress). Full protocol, insertion-path and torque-path audits included:
+   **`references/assembly-verification.md`**.
+6. **Never model a bought part from memory.** Datasheet, caliper, or user STL, then echo
+   the dims back for confirmation before geometry depends on them. Guessed motors, boards,
+   keypads, and battery holders have each cost a reprint. Measured library + checklist:
+   **`references/components-verified.md`**.
 
 ## Project layout (set this up before modeling, not after)
 
@@ -214,11 +227,27 @@ must be cut **straight**, not helical, or the shaft won't pass.
 
 Everything in `scripts/` is project-agnostic. Copy what you need:
 
-- **`serve.py`**, tiny localhost static server (browsers won't fetch `.glb`/`.stl` over
-  `file://`). `python3 serve.py 8765` → `http://localhost:8765/viewer_glb.html`. Sets
-  `Cache-Control: no-store` and the `.glb` mime type.
+- **`serve.py`**, tiny static server (browsers won't fetch `.glb`/`.stl` over `file://`).
+  `python3 serve.py` with no args derives a **stable per-project port** (8100-8799 from the
+  project dir name), so two projects can never collide on 8765 again (that collision burned
+  three projects debugging the wrong model). Binds 0.0.0.0 and prints the **LAN URL so the
+  user can open the viewer on a phone on the same wifi**. Answers `/__project__` so shoot.py
+  can verify identity. Sets `Cache-Control: no-store` and the `.glb` mime type.
+- **`assembly_check.py`**, the pre-export gate: pairwise boolean interference (exit 1 on
+  un-whitelisted overlap, Makefile-gateable), sub-clearance warnings, and a `--sweep`
+  motion check across a moving part's full travel. See `references/assembly-verification.md`.
+- **`wallcheck.py`**, fast trustworthy wall-thickness + breach checking (shell
+  self-thickness via voxel EDT; parts-inside-shell breach via union -> signed distance,
+  coarse proxy for search, exact for the verdict). The naive alternatives (contains-probes
+  at seams, KDTree signs) false-alarm; this encodes the recipe that finally worked.
+- **`checks_template.py`**, design-invariant tests ("unit tests for geometry"): copy to
+  `src/checks.py`, add one check per user-approved requirement the same turn it's approved,
+  run at the end of every build. Kills the silently-deleted-feature class.
 - **`viewer_glb.html`**, the main Three.js (0.169, jsdelivr) GLB viewer for **multi-part
   assemblies**, and the single viewer that carries every feature the projects evolved. `?m=<file>.glb`.
+  Responsive: side panel on desktop/big displays (font scales with viewport), collapsible
+  ☰ bottom sheet with fat touch targets on phones; canvas is `touch-action:none` so
+  one-finger orbit / two-finger pan-zoom don't fight page gestures.
   Per-part toggles (auto-built from node names), deterministic per-name colors, **ghost-outline**
   default for housing-like parts (translucent + edge lines) with a **solid** toggle, **per-part
   L/W/H axis dimension lines + labels** (the wall-shelf-clamp dimension feature, toggleable;
@@ -236,9 +265,12 @@ Everything in `scripts/` is project-agnostic. Copy what you need:
   viewer for the **part-by-part workflow** (many independent STLs you iterate on and want to see
   together + dimensioned); `viewer_glb.html` is for a single live-reloading assembly GLB instead.
 - **`shoot.py`**, headless multi-angle renders via Playwright. `python3 shoot.py model.glb tag
-  [port]` writes `.claude/renders/tag_{iso,front,side,top,sec_mid,sec_iso}.png` (always into
-  `.claude/renders/`, created on demand, so renders never clutter the project root). Auto-detects
-  STL vs GLB by extension. Pairs with `serve.py`.
+  [port]` writes `.claude/renders/tag_{iso,front,side,top,bottom,sec_mid,sec_iso}.png` (always
+  into `.claude/renders/`, created on demand, so renders never clutter the project root).
+  **Bottom is in the standard set**: bed-facing bugs (floating discs, raised features that
+  should be engraved) hide from every other angle. Defaults to the same per-project port as
+  serve.py and **aborts if `/__project__` says the server belongs to another project**.
+  Auto-detects STL vs GLB by extension. Pairs with `serve.py`.
 - **`stlpaths.py`**, the subsystem router from **Project layout**. `stlp("worm.stl")` →
   `stl/drive/worm.stl` by filename prefix; `webpath()` / `exportpath()` / `rootpath()` for the
   other dirs. Drop it in `src/`, edit the `SUBSYSTEMS` prefix table per project. Keeps every export
@@ -274,12 +306,19 @@ context for *your* verification.
   default Y-up to fake it, it fights OrbitControls and renders cylinders / bores lying on their side.
 - **The headless browser caches `localhost:<port>/<file>` per port.** A stale `serve.py` from a
   prior project on the same port silently serves the WRONG model (you debug geometry that's fine).
-  Use a fresh unique port and `pkill -f serve.py` first whenever a render looks like someone else's part.
+  The bundled serve.py/shoot.py now auto-derive a per-project port and handshake via
+  `/__project__`; if you override the port manually, keep it unique per project and
+  `pkill -f serve.py` whenever a render looks like someone else's part.
 - **CSS2D dimension labels:** `CSS2DRenderer` + a second `.render(scene,cam)` in the loop gives crisp
   bbox L/W/H tags that always face the camera; attach them as children of the mesh so they follow it.
 
 ## Verify before "done"
 
+- **Run the assembly gate**: `assembly_check.py` (pairwise interference, clearance,
+  motion sweep) + `checks.py` design invariants + the insertion-path and torque-path
+  audits from `references/assembly-verification.md`. "Watertight and looks right from six
+  angles" has shipped unassemblable parts to plastic more than once; the gate is what
+  catches lugs bigger than notches, sealed pockets, and freewheeling bores.
 - `mesh.is_watertight` and `mesh.is_winding_consistent` after every edit.
 - Print a feature-size report: smallest wall / tooth tip / thread crest. **< ~0.6 mm won't print**
   (the slicer's Arachne generator smooths it away).
@@ -297,8 +336,20 @@ context for *your* verification.
   run-outs), min feature size, support strategy, PLA vs PETG, hoop stress for pressure parts,
   warp/adhesion, the "slicer settings beat geometry hollowing" lesson.
 - **`references/mechanisms-and-fits.md`**, gears/worms (module vs teeth vs lead angle), keyed
-  bores + manual override, press-fits / clearances / snap vs friction joints, bearings, one-way
-  clutches, motor coupling, and which of these *must* be dialed in on a test print.
+  bores + manual override, press-fits / clearances / snap vs friction joints, screws/nut traps,
+  bearings, one-way clutches, motor coupling, and which of these *must* be dialed in on a test print.
+- **`references/assembly-verification.md`**, the pre-export gate: interference + motion-sweep
+  audit, insertion-path and torque-path checklists, design-invariant tests, the multi-agent
+  pre-print review, the spatial-language/orientation protocol, and render-legibility rules
+  (bottom view, ghost mode hides interference, per-part colors).
+- **`references/csg-robustness.md`**, the trimesh/manifold3d boolean playbook (single-call
+  booleans, morphological close, coincident-geometry jitter, artifact diagnosis), the
+  build123d on-ramp, and iteration-speed tactics (mesh caching, PREVIEW mode, coarse-proxy
+  sweeps).
+- **`references/components-verified.md`**, the never-model-bought-parts-from-memory rule and
+  session-verified dimensions for the recurring hardware (28BYJ-48, TT motor, driver/charge/
+  boost boards, 18650 holders, 608, keypads, Pi + touchscreen), plus the
+  electronics-in-enclosures checklist.
 
 ## Related skills
 

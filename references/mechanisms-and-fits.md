@@ -72,6 +72,32 @@ small features at small radius → hundreds of N. Findings:
   print and iterate than tapped holes, but the barb interference and the bayonet engagement are exactly the
   features that need one physical test print, they flex and can shear; don't trust them from a render.
 
+## Screws + nuts are the cheap structural upgrade (default to M2/M3/M4)
+
+A printed joint that's press-fit or glued is fine until it sees real load, then it creeps, shears a
+barb, or splits a layer line. **Common small metric screws + nuts (M2 / M3 / M4) are the easiest way
+to make a part strong and serviceable**, and you almost certainly already have them in a drawer.
+Reach for them before designing around large or specialty hardware (an M8 bolt, a long ground rod, a
+weird shoulder screw) that the user has to go buy. Small screws are cheaper, ubiquitous, and let a
+joint be taken apart and re-tightened, which press-fits and glue don't.
+
+- **Captive hex-nut trap >> self-tapping into plastic.** Model a pocket the nut drops into (across-
+  flats + ~0.2 mm, depth = nut thickness + ~0.2 mm), run a clearance bore through, bolt from the
+  other side. The plastic never carries the thread, the metal does, so it survives repeated assembly.
+  Self-tapping a screw straight into a printed boss strips after a few cycles; only acceptable for a
+  one-time, low-load fix.
+- **Heat-set brass inserts** (soldering-iron press-in) when a face is re-opened often or space is too
+  tight for a nut trap. Boss hole = insert's lead diameter; leave a ~1.5 mm wall around it.
+- **Default sizes:** M3 is the workhorse (brackets, motor mounts, lids). M2 for small/light/tight
+  parts. M4 only where the load or the part size genuinely calls for it. Clearance hole = nominal +
+  ~0.4 mm (M3 -> Ø3.4); tap-free, the nut does the holding.
+- **Where a screw does NOT substitute:** a *shaft* that must run inside a specific bearing bore (an
+  8 mm axle in a 608's 8 mm ID) has to be that diameter, you can't swap it for an M3. That's the one
+  case to spec the real rod/bolt; everywhere else (clamping plates, mounting motors, joining
+  modules, reinforcing a press-fit) prefer the small screws on hand.
+- **Design the holes in `build.py` as parameters** (`M3_CLEAR=3.4`, `M3_NUT_AF=5.5`, `M3_NUT_T=2.4`)
+  so the fastener plan is one edit, and so a render/print can verify the nut trap actually captures.
+
 ## Bearings and shafts
 
 - **608 (8×22×7) deep-groove** bearings on shaft ends, in Ø~22.15 press-fit pockets split across a clamshell.

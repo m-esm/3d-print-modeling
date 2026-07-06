@@ -5,20 +5,47 @@ collisions, parts floating, things poking through). View the PNGs before reporti
 
     python3 shoot.py [model.glb|part.stl] [tag] [port]
 
-Writes .claude/renders/<tag>_<view>.png for a set of camera angles plus two section cuts.
+Writes .claude/renders/<tag>_<view>.png for a set of camera angles (including BOTTOM,
+which has caught bugs every other angle missed) plus two section cuts.
 All renders land in .claude/renders/ (created if missing) so they NEVER pollute the project
 root, gitignore that one dir (`.claude/renders/`) and the regenerable PNGs stay out of git.
 Works against viewer_glb.html (?m=) or viewer_stl.html (?file=), auto-detected by extension.
-Requires `python3 serve.py <port>` running in another shell. Renders are 1100x850 @2x;
-downscale before reading inline (`sips -Z 1400 in.png --out in_s.png`), phone/Retina renders
-blow past the 2000px image cap.
+Requires `python3 serve.py` running in another shell. With no port argument, uses the same
+per-project port serve.py derives, and VERIFIES via /__project__ that the server belongs to
+THIS project (a stale serve.py from another project on the same port silently renders the
+wrong model, this has burned three projects). Renders are 1100x850 @2x; downscale before
+reading inline (`sips -Z 1400 in.png --out in_s.png`), phone/Retina renders blow past the
+2000px image cap.
 """
-import os, sys
+import os, sys, zlib, urllib.request
 from playwright.sync_api import sync_playwright
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE) if os.path.basename(HERE) in ("src", "scripts", "tools") else HERE
+PROJECT = os.path.basename(ROOT)
+
+
+def project_port(name: str) -> int:
+    return 8100 + (zlib.crc32(name.encode()) % 700)
+
 
 model = sys.argv[1] if len(sys.argv) > 1 else "assembly.glb"
 tag   = sys.argv[2] if len(sys.argv) > 2 else "shot"
-port  = sys.argv[3] if len(sys.argv) > 3 else "8765"
+port  = sys.argv[3] if len(sys.argv) > 3 else str(project_port(PROJECT))
+
+# Refuse to render another project's server. Old serve.py versions lack /__project__;
+# warn but continue for those.
+try:
+    served = urllib.request.urlopen(
+        f"http://localhost:{port}/__project__", timeout=3).read().decode().strip()
+    if served != PROJECT:
+        sys.exit(f"ABORT: port {port} is serving project '{served}', not '{PROJECT}'. "
+                 f"Kill it (pkill -f serve.py) and restart this project's serve.py.")
+except SystemExit:
+    raise
+except Exception:
+    print(f"warning: could not verify server identity on port {port} "
+          f"(old serve.py or server down); renders may be from the wrong project")
 
 RENDER_DIR = os.path.join(".claude", "renders")          # always here -> easy to gitignore, no clutter
 os.makedirs(RENDER_DIR, exist_ok=True)
@@ -34,6 +61,7 @@ VIEWS = [
     ("front",    0,   8, 1.7, False, 0.5),
     ("side",    90,   8, 1.7, False, 0.5),
     ("top",      0,  89, 1.7, False, 0.5),
+    ("bottom",   0, -89, 1.7, False, 0.5),   # non-optional: bed-facing bugs hide from every other angle
     ("sec_mid", 90,   0, 1.6, True,  0.5),
     ("sec_iso", 35,  20, 1.6, True,  0.5),
 ]

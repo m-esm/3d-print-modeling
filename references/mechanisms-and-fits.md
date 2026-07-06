@@ -45,6 +45,12 @@ small features at small radius → hundreds of N. Findings:
 
 ## Keyed bores + manual override
 
+- **Gear and pin/journal are separate prints joined by a square/hex fit**, never one piece: an
+  attached coaxial pin forces slicer support under the gear face or around the journal (time +
+  waste + rough surfaces where they hurt most). Square/hex pocket in the hub, matching boss on
+  the pin, ~0.15-0.25 mm per flat dialed on a test print. Full rule + the one-sided-journal
+  exception in fdm-design-rules ("Never print a gear with its pin/journal attached").
+
 - To transmit torque to a supplied shaft, **read the shaft's real profile** (slice the supplied STL at its
   constant section, transform to world XY, center it), offset outward by ~0.25 mm clearance, and CSG-subtract
   a **straight** prism of that profile from the gear. Straight, not helical, a helical bore won't pass a

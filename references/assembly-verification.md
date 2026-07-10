@@ -19,7 +19,22 @@ none violate watertightness.
 2. **Motion sweep for anything that moves**: `--sweep part=AXIS:start:end:steps` re-runs
    the overlap check across the whole travel. "Tilt binds at -11 deg against a +/-30 spec,
    and the committed preview pose itself collides" is exactly what this catches. Sweep to
-   the EXTREMES of travel, not the rest pose.
+   the EXTREMES of travel, not the rest pose, and if the joint homes by stalling against
+   hard stops, sweep to the STALL angles, not the nominal software limit (a +/-90 spec
+   with stall stops at +/-93.3 really visits +/-93.3). Two refinements from a pan/tilt
+   head build:
+   - **The sweep is also a design INPUT, not just a pass/fail gate.** When a moving
+     drivetrain must live inside a shell, probe the mechanism at N steps across full
+     travel FIRST, record the max intrusion envelope (x/y/z extents of everything that
+     pokes past the wall plane), then size the cavity or relief from the MEASURED swept
+     envelope plus margin, and re-sweep after modeling. desk-pi's rear pod door: 21 tilt
+     steps to the +/-33.8 stalls gave a swept intrusion of x +/-13.5 / y to -78.1; the
+     pod cavity was sized to swallow exactly that, final worst-case clearance 1.85 mm.
+     Guessing the cavity from the neutral pose undersizes it every time.
+   - **Sweep against the right part sets.** In a kinematic chain, a moving part must be
+     checked against the FIXED parts and against its PARENT group separately (the head's
+     door rides the head, the tilt drivetrain rides the pan group; they move relative to
+     each other AND relative to the chassis).
 3. **Insertion-path audit, part by part** (eyes + section cuts, no script can do this):
    for every bought part (bearing, motor, board, battery, nut), answer "through which
    opening does it enter, in what order, and does anything printed later block it?" A part
@@ -80,6 +95,15 @@ contact patches colored by clearance (red press / amber <0.15 / yellow <0.4 / gr
 drawn through the housing; click a row to isolate one pair's patch. The overview reads
 like a CAD contact heatmap — the clamshell split traces as a ring, gear meshes as flank
 stripes — and makes "which surfaces rub, and how hard" a thing you see rather than infer.
+
+**Articulated assemblies:** run the canonical fit report at the NEUTRAL pose (e.g.
+`make fits` = `FITS=1 PAN=0 TILT=0`). Same-group pairs (bores, seats, presses within one
+kinematic group) are pose-independent; cross-group numbers change with the joints, so a
+report baked at a preview pose is not the reference. Store the patch coords in neutral
+pose and have the viewer re-pose them per kinematic group (a patch belongs to the MORE
+moving of its two parts: child group > parent group > fixed), so the 3D overlay stays
+correct at any joint-slider pose and on any baked GLB. And keep the fit pass OPT-IN
+behind a flag: a full-assembly report costs minutes, which kills a ~2 s watch loop.
 
 ## Design-invariant checks: unit tests for geometry
 

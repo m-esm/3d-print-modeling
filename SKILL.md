@@ -107,6 +107,44 @@ Bundled in `scripts/Makefile`.
 (preview tilt clearance at 45°), `NOZZLE08=1`. Clean way to get preview/variant modes out of a
 single source of truth without forking the file.
 
+**When one assembly's `build.py` outgrows ~1.5k lines, split it into per-subsystem MODULES**
+(desk-pi hit 3.4k lines, then split into `params.py` / `geo.py` (shared box/cyl/boolean/screw
+helpers + COLORS) / one module per physical subsystem (`head.py`, `neck.py`, `chassis.py`,
+`tracks.py`, ...) / `build.py` reduced to the entry that poses and collects parts into the GLB).
+Keep the import DAG one-way and record it in CLAUDE.md: params ← geo ← part modules ← build,
+params imports nothing local, no cycles. This is a different pattern from the standalone
+`build_<sub>.py` scripts above: standalone scripts are for INDEPENDENT parts, modules are for
+one interconnected assembly whose parts share params and interfaces.
+
+**Publish `web/` to GitHub Pages when the user wants the viewer off-LAN** (phone anywhere,
+sharing a link). It works because `web/` is self-contained and `assembly.glb` is committed:
+
+Prefer the AUTO-DEPLOY wiring (desk-pi endgame): a workflow that publishes `web/` on any
+push to main that touches it, with the repo's Pages source set to "GitHub Actions"
+(`gh api -X PUT /repos/<r>/pages -F build_type=workflow`; no gh-pages branch at all):
+
+```yaml
+# .github/workflows/pages.yml
+on: {push: {branches: [main], paths: ["web/**"]}, workflow_dispatch: }
+permissions: {contents: read, pages: write, id-token: write}
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: {name: github-pages, url: ${{ steps.d.outputs.page_url }}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: {path: web}
+      - {id: d, uses: actions/deploy-pages@v4}
+```
+
+Then the flow is just build -> commit -> push. (The manual fallback, a `make pages` that
+subtree-pushes `web/` to a gh-pages branch, works but every forgotten run ships a stale
+viewer.) Add `web/.nojekyll` (empty) and a `web/index.html` meta-refresh redirect to the
+viewer page. Note the commit that ADDS the workflow usually doesn't touch `web/`, so
+trigger the first deploy by hand (`gh workflow run pages.yml`).
+
 **What to commit vs ignore** (the line the turntable got wrong):
 - **Commit:** `src/`, `stl/`, `web/assembly.glb` + `web/assembly_dims.json`, `docs/`, `CLAUDE.md`,
   `Makefile`, `requirements.txt`. Committing the current `assembly.glb` means a fresh clone shows
@@ -248,10 +286,18 @@ Everything in `scripts/` is project-agnostic. Copy what you need:
   Responsive: side panel on desktop/big displays (font scales with viewport), collapsible
   ☰ bottom sheet with fat touch targets on phones; canvas is `touch-action:none` so
   one-finger orbit / two-finger pan-zoom don't fight page gestures.
-  Per-part toggles (auto-built from node names), deterministic per-name colors, **ghost-outline**
-  default for housing-like parts (translucent + edge lines) with a **solid** toggle, **per-part
-  L/W/H axis dimension lines + labels** (the wall-shelf-clamp dimension feature, toggleable;
-  X=length red, Y=width green, Z=height blue), an **explode** slider (parts fly out radially), a
+  Per-part toggles **grouped BY OBJECT into collapsible categories** (name-regex `CATS` table,
+  each group with a toggle-all checkbox, indeterminate when mixed -- how you flip the pieces of
+  one split object on and off), deterministic per-name colors, **ghost-outline**
+  default for housing-like parts (translucent + edge lines) with a **solid** toggle,
+  **click-to-select** (raycast on click; >6 px pointer travel = orbit, not click: the part glows,
+  its row highlights + scrolls into view, name + posed world L/W/H print under the title; same
+  part / empty space / Esc clears), **per-part
+  L/W/H axis dimension lines + labels** (toggleable;
+  X=length red, Y=width green, Z=height blue), an **explode** slider (parts fly out radially,
+  composed with the joint pose in ONE place), **per-joint pose sliders** from the
+  `<model>.pose.json` sidecar (rotary AND linear joints -- see the articulated-assemblies
+  section), the **fit map ON by default** (patches re-posed per kinematic group), a
   **section cut on any axis** (X/Y/Z select + slider), a **spin** toggle, a print-bed grid, Z-up,
   ACES tone mapping, and auto-reload on rebuild. Exposes `window._scene/_cam/_controls/THREE` and
   sets `window.__ready` for headless control by `shoot.py`. The dimension labels use `CSS2DRenderer`
@@ -312,12 +358,48 @@ context for *your* verification.
 - **CSS2D dimension labels:** `CSS2DRenderer` + a second `.render(scene,cam)` in the loop gives crisp
   bbox L/W/H tags that always face the camera; attach them as children of the mesh so they follow it.
 
+## Articulated assemblies: pose sidecar + viewer joint sliders
+
+When the assembly has joints (pan/tilt head, hinged lid, rotating stage), don't rebuild the GLB
+to inspect another pose. The pattern that landed on desk-pi (reference implementation:
+its `web/viewer_glb.html` + the sidecar writer in `src/build.py`):
+
+- **The build writes a `<model>.pose.json` sidecar next to the GLB** on every run: the BAKED
+  preview pose angles (the GLB's vertices bake whatever pose the build rendered), each joint's
+  axis position, the travel limits, and a name → kinematic-group map (which nodes ride which
+  joint: `head` rides tilt rides pan, `pan` rides pan only, everything else fixed).
+- **The viewer adds one slider per joint and applies DELTA rotations** from the baked angles
+  (slider pose × inverse of baked pose), per kinematic group, composed with explode in ONE
+  place so the two effects don't fight over `object.position`. The user drags pan/tilt live;
+  no rebuild.
+- **Fit-map patches are stored in NEUTRAL-pose coords**, so unlike the baked meshes they need
+  the FULL slider pose, not the delta. A patch belongs to the MORE moving of its two parts
+  (child group > parent group > fixed); same-group pairs then ride exactly.
+- **Linear joints ride the same sidecar** (desk-pi's telescoping antenna masts): list the
+  moving nodes (`ant_nodes`) + travel + the baked extension; the viewer composes a
+  head-local translation INSIDE the parent joint pose
+  (`parentPose . T(0,0,slider-baked) . inv(bakedParentPose)`), one slider per node, so a
+  tilted head deploys along its own up. Bake the preview extension via env
+  (`ANT=<mm> make build`) like the rotary poses.
+- **Shoot the extremes, not just neutral.** Drive the bake pose via env (`PAN=90 TILT=-30
+  make build && make shot`) and read those renders too; the neutral render hides every swept
+  collision. For the numeric version see the motion sweep + swept-envelope notes in
+  `references/assembly-verification.md`.
+- **Place new mechanisms by PROBING keep-outs, not by eyeballing:** transform the moving
+  group's vertices into the target frame across the joint range and take the cloud's
+  bounds (desk-pi: the tilt drivetrain sweeps x +-24 z<174 inside the head; the screen
+  tray owns x 56..68 z<196) -- then lay the new gear train inside the free bands and let
+  the interference gate arbitrate. Guessing placements cost three collision rounds;
+  probing found the only workable band in one.
+
 ## Verify before "done"
 
 - **Run the assembly gate**: `assembly_check.py` (pairwise interference, clearance,
   motion sweep) + `fitmap.py` (pairwise CLEARANCE MEASUREMENT + contact patches — booleans
   prove non-overlap, not non-press; a gearbox passed every boolean while seized at 0.00°
-  backlash) + `checks.py` design invariants + the insertion-path and torque-path
+  backlash; run the canonical report at the NEUTRAL pose, and since a full-assembly pass
+  costs minutes keep it a flag like `FITS=1` / `make fits`, not part of the fast watch
+  loop) + `checks.py` design invariants + the insertion-path and torque-path
   audits from `references/assembly-verification.md`. "Watertight and looks right from six
   angles" has shipped unassemblable parts to plastic more than once; the gate is what
   catches lugs bigger than notches, sealed pockets, and freewheeling bores.
@@ -332,20 +414,56 @@ context for *your* verification.
   measurements still hides orientation, collision, floating-part, and feature-distortion bugs.
   Treat "I looked at all the angles and they match intent" as the bar for done, not "it's watertight."
 
+## Splitting big prints for speed (and less support)
+
+When a part dominates print time or needs a big bed, split it and join with printed
+features (desk-pi took its four biggest from a 434 cm3 worst-piece / 256 bed to a
+225 cm3 worst-piece with everything on 180x180, and no plate over 8 h):
+
+- **Halve wide shells at a plane through their sparse cross-section** (a head shell's
+  only solid at x=0 was the top wall + one rear strip). Joint kit per seam: an internal
+  flange with 2x M3 (clearance + counterbore one side, Ø2.5 thread-form pilot the
+  other), Ø4 dowels for shear/alignment, or a 0.15-fit tongue/groove where a flange
+  won't fit. **Stagger the seams of nested parts** (bezel at x=+22 vs back at x=0) so
+  the assembled stack interlocks like brickwork, and count the OTHER parts that bridge
+  a seam (perimeter screws, rails, pinned trim) before adding more joint hardware.
+- **Kill ceiling support with a panel/frame split, not more supports:** a tub-shaped
+  part printed open-face-down turns its whole back wall into a supported ceiling.
+  Split the flat wall off as a PANEL (prints lying flat, features up, ~zero support,
+  minutes not hours) and leave a wall FRAME that prints with no ceiling at all; join
+  with M3s from the back into frame rim tabs (clip tabs into rounded-corner mass with
+  `inter(tab, solid)` -- at the wall plane the "side wall" may be all corner curve).
+- **Slabs with a precision feature keep it monolithic:** a deck carrying a bearing
+  seat splits into strips AROUND the seat (half-laps + vertical screws), never through
+  it.
+- **Solid styling bodies get pockets, not seams** (a display pod's solid tiers:
+  interior lightening pockets with >=2 mm walls).
+- **Gates must survive the rename:** alias each piece to its parent object for
+  whitelist lookups and allow same-parent contact (the designed seam) -- the
+  `SPLIT_ALIAS` hook in the bundled `assembly_check.py` / `fitmap.py`. Then re-run the
+  full gate stack and re-plate the slicer export (the part list changed; a stale
+  exporter re-plating deleted names is the staleness class the bambu skill warns about).
+- **Measure, don't guess, the win:** headless-slice the re-plated project and quote
+  per-plate times (foreign-cad-import skill, BambuStudio CLI; pass `--export-3mf` a
+  RELATIVE filename -- it prepends `--outputdir` even to absolute paths).
+
 ## Deeper references (read on demand)
 
 - **`references/fdm-design-rules.md`**, print orientation, self-supporting geometry (45° roofs,
   run-outs), min feature size, support strategy, PLA vs PETG, hoop stress for pressure parts,
   warp/adhesion, the "slicer settings beat geometry hollowing" lesson.
 - **`references/mechanisms-and-fits.md`**, gears/worms (module vs teeth vs lead angle), keyed
-  bores + manual override, press-fits / clearances / snap vs friction joints, screws/nut traps,
-  bearings, one-way clutches, motor coupling, and which of these *must* be dialed in on a test print.
+  bores + manual override, press-fits / clearances / snap vs friction joints (incl. snap-tongue
+  service doors), screws/nut traps, bearings, one-way clutches, motor coupling, service
+  cartridges + stall-homing hard stops, closed loops of discrete links (tracks/chains/belts),
+  and which of these *must* be dialed in on a test print.
 - **`references/assembly-verification.md`**, the pre-export gate: interference + motion-sweep
-  audit, the FIT MAP (`fitmap.py`: measured clearance/press + contact patches per pair, gear
-  backlash measurement, insertion-PATH sweeps — states vs processes), insertion-path and
-  torque-path checklists, design-invariant tests, the multi-agent pre-print review, the
-  spatial-language/orientation protocol, and render-legibility rules (bottom view, ghost mode
-  hides interference, per-part colors).
+  audit (incl. swept-envelope-as-design-input for mechanisms inside shells, sweeping to stall
+  stops), the FIT MAP (`fitmap.py`: measured clearance/press + contact patches per pair, gear
+  backlash measurement, insertion-PATH sweeps — states vs processes, neutral-pose canon for
+  articulated assemblies), insertion-path and torque-path checklists, design-invariant tests,
+  the multi-agent pre-print review, the spatial-language/orientation protocol, and
+  render-legibility rules (bottom view, ghost mode hides interference, per-part colors).
 - **`references/csg-robustness.md`**, the trimesh/manifold3d boolean playbook (single-call
   booleans, morphological close, coincident-geometry jitter, artifact diagnosis), the
   build123d on-ramp, and iteration-speed tactics (mesh caching, PREVIEW mode, coarse-proxy

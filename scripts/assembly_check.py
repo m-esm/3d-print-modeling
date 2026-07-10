@@ -36,7 +36,12 @@ pocket yet unreachable through the opening), torque paths (a plain bore freewhee
 with perfect clearance), and fastener reach. Verify those with section renders and
 design-invariant checks.
 """
-import argparse, itertools, sys
+import argparse
+
+# When big prints are SPLIT for speed (e.g. head_back -> head_back_frame_L/_R +
+# head_back_panel_L/_R), map each piece to its parent object here so existing
+# whitelist pairs keep working and sibling seam contact is allowed.
+SPLIT_ALIAS = {}, itertools, sys
 import numpy as np
 import trimesh
 
@@ -93,6 +98,11 @@ def audit(parts, clearance, allow, label=""):
         if bbox_gap(a, b) > clearance:
             continue
         vol = overlap_volume(a, b)
+        # print-speed sub-splits: pieces of one object alias to the parent for the
+        # whitelist lookup, and same-parent pieces may touch (their designed seam).
+        na, nb = SPLIT_ALIAS.get(na, na), SPLIT_ALIAS.get(nb, nb)
+        if na == nb:
+            continue
         pair = frozenset((na, nb))
         if vol is None:
             warnings.append(f"  ?  {na} vs {nb}: boolean failed (non-volume mesh), "

@@ -31,7 +31,10 @@ Usage:
     python3 fitmap.py assembly.glb [-o fit_report.json] [--near 2.5] [--patch 0.6]
                       [--samples 2600] [--skip door battery] [--far 2.0]
 """
-import argparse, json, sys
+import argparse
+
+# Split-piece -> parent-object aliases (see assembly_check.py SPLIT_ALIAS).
+SPLIT_ALIAS = {}, json, sys
 import numpy as np
 import trimesh
 
@@ -95,7 +98,10 @@ def fit_map(meshes, near=2.5, patch_band=0.6, samples=2600, far=2.0, seed=0, max
                 mm=round(float(-d[k]), 3),
                 press=bool(d[k] > 0.005 and vol != 0.0),
                 vol=round(vol, 2),
-                designed=frozenset((names[i], names[j])) in designed,
+                designed=frozenset((SPLIT_ALIAS.get(names[i], names[i]),
+                                    SPLIT_ALIAS.get(names[j], names[j]))) in designed
+                         or SPLIT_ALIAS.get(names[i], names[i])
+                         == SPLIT_ALIAS.get(names[j], names[j]),
                 at=[round(float(x), 2) for x in pts[k]],
                 patch=[[round(float(pts[q][0]), 2), round(float(pts[q][1]), 2),
                         round(float(pts[q][2]), 2), round(float(-d[q]), 3)] for q in sel]))

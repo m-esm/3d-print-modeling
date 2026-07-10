@@ -77,6 +77,13 @@ small features at small radius → hundreds of N. Findings:
   motor ears, bearing blocks, and brackets together, and the top plate bayonet-twists onto the hub. Cheaper to
   print and iterate than tapped holes, but the barb interference and the bayonet engagement are exactly the
   features that need one physical test print, they flex and can shear; don't trust them from a render.
+- **Snap-tongue doors for panels opened often** (user ask: "easy to open and close", replacing 2 screws +
+  captive-nut blocks on a service door): hook the panel's top edge into the frame, then per leg cut a SLIT
+  beside the leg so a strip of the panel wall becomes a cantilever tongue, with an outboard barb near the free
+  end that clicks behind a fixed wall band. A proud lip or step on the panel is the pull grip; the barb's back
+  ramp releases on a firm pull. Keep heavy panel mass (a thick pod, ribs) OFF the tongue zone, notch it clear
+  so the tongue keeps its designed flex length. Tongue length/thickness and barb engagement are test-print
+  features like any snap.
 
 ## Screws + nuts are the cheap structural upgrade (default to M2/M3/M4)
 
@@ -124,6 +131,36 @@ joint be taken apart and re-tightened, which press-fits and glue don't.
   shaft journal so the motor shaft engages the bore ~8 mm, not ~3.
 - **Wire pass-throughs split on the clamshell seam** (a semicircle in each half) so leads drop in when the lid
   closes, no threading.
+
+## Serviceability: cartridge subassemblies + homing stops
+
+- **Bench-assembled carrier beats in-situ screws.** When a bought module (motor + worm, display + SBC) needs
+  several screws deep inside a shell, mount it to a small printed carrier ON THE BENCH, then drop the loaded
+  carrier into the shell and fix it with a few short screws from an open face. Two desk-pi examples: the tilt
+  cartridge (motor + worm on a plate; a dead stepper swaps without touching the head) and the screen tray
+  (screen + Pi bolt to the tray at the factory bosses on the bench; the tray drops in and takes 4 short screws
+  from outside the back wall, replacing 4 screws down 88.5 mm blind channels).
+- **Any screw needing a driver channel longer than a normal driver shank (~50 mm) is a design smell.**
+  Redesign the joint so heads land on an outside face or in an open bay; don't model the channel.
+- **Check the cartridge's EXTRACTION path across the poses the mechanism can hold**, not just neutral. A worm
+  cartridge extracts axially by spinning the free wheel, but with the output loaded that motion needs the mesh
+  to nod further than the hard stops allow; the fix was a documented service pose ("drive the head fully up
+  first"). Write the required service pose into docs/ASSEMBLY.md the moment you find it.
+- **Stall-homing hard stops instead of endstop switches.** For stepper-driven joints, model deliberate stop
+  features slightly OUTSIDE the software travel (stops at ±93.3° for a ±90° spec): firmware homes by driving
+  into the stall, backing off, and calling it the limit. Zero extra parts or wires. Consequence for
+  verification: the assembly really visits the STALL angles, so motion sweeps must go there (see
+  assembly-verification.md).
+
+## Closed loops of discrete links (tracks, chains, timing belts)
+
+- **The loop perimeter must equal links × pitch EXACTLY.** Don't pick the wheelbase (center distance) and the
+  link count independently; solve the free geometric parameter for integer closure and ASSERT it in the build
+  (`assert abs(perimeter - n * pitch) < 0.15`) so a later "stretch the chassis" edit can't silently reopen the
+  loop. Changing proportions then means re-solving the wheelbase, not re-counting links.
+- **Close the loop with a MASTER LINK**: one link of the chain is a drop-on C-jaw variant, locked by slide-in
+  keeper bars with one small screw each. The loop installs without flexing the whole chain and opens with two
+  screws; a loop that only closes by stretching it over the sprocket tears at the hinge pins.
 
 ## Driving printed gears with steppers
 

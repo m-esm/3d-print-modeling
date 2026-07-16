@@ -83,3 +83,24 @@ engine of last resort. The viewer/verify loop is identical either way.
 - Long sweeps: run foregrounded with progress prints and unbuffered output
   (`python3 -u`), not backgrounded-and-polled; buffered background jobs look hung, invite
   duplicate launches ("three duplicate sweeps competing"), and time out monitors.
+
+
+## trimesh's boolean wrapper injects phantom geometry (desk-pi, 2026-07-14)
+
+On complex meshes, `trimesh.boolean.union/difference/intersection(engine="manifold")`
+(trimesh 4.12) can HALLUCINATE material neither input has: an intersection grew a
+0.2 mm bulge on a rib face; a compound union of overlapping coplanar boxes grew
+150 mm3 inside a probe window its inputs couldn't fill. The same operands through
+manifold3d's own API came out exact. Rules that ended it:
+
+- Call manifold3d DIRECTLY (f32 `Mesh`; rewrap with `Trimesh(..., process=False)`).
+  The f64 `Mesh64` path produced its own artifacts on this trimesh/manifold combo.
+- Never union many overlapping coplanar volumes in one call. Build capture regions
+  as ONE shapely 2D `unary_union` extruded once; union added bodies PAIRWISE.
+- `trimesh.contains()` is ray-parity and LIES near coincident faces. Probe with a
+  manifold cube intersection instead: `(Manifold(mesh) ^ cube_at_point).volume()`.
+- Boolean facet residue owns the last ~0.02 mm3: keep placeholder-to-part design
+  clearances >= 0.3, and expect zero-thickness sheets where a cut plane lies
+  exactly on an open face (shave 1 micron with a capped slice).
+- Silent tooling corollary: `str.replace` edits without an assert and gates run
+  through `| tail` (exit code masked) let two of these "fixes" no-op unnoticed.

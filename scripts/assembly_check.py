@@ -41,7 +41,9 @@ import argparse
 # When big prints are SPLIT for speed (e.g. head_back -> head_back_frame_L/_R +
 # head_back_panel_L/_R), map each piece to its parent object here so existing
 # whitelist pairs keep working and sibling seam contact is allowed.
-SPLIT_ALIAS = {}, itertools, sys
+SPLIT_ALIAS = {}
+import itertools
+import sys
 import numpy as np
 import trimesh
 

@@ -447,6 +447,40 @@ features (desk-pi took its four biggest from a 434 cm3 worst-piece / 256 bed to 
   per-plate times (foreign-cad-import skill, BambuStudio CLI; pass `--export-3mf` a
   RELATIVE filename -- it prepends `--outputdir` even to absolute paths).
 
+## Separate by stability (frozen shell vs equipment base)
+
+Splitting for print speed is not the only partition. Before modeling any enclosure or
+chassis that carries components, partition it by CHANGE FREQUENCY first:
+
+- **The FROZEN shell**: structural + cosmetic geometry (walls, kinematic seats, seams,
+  bearing bores). Big, slow, support-sensitive, printed once. Keep it CLEAN: no screw
+  pockets, posts, or bosses for any component whose dimensions are unverified
+  (dev boards, sensor modules, buck converters, anything marked verify-on-arrival).
+- **The IN-FLUX equipment base**: a small flat drop-in plate that owns EVERY mount for
+  the unverified/evolving components. It bolts to the shell at a few generic points
+  (e.g. 4x M3 into floor pilots). When a real part arrives with different holes, you
+  edit the base layout and reprint ONLY the base — a flat, support-free, minutes-long
+  print — never the shell.
+
+**Decision rule** for what stays fused in the shell: only features that are
+(a) kinematic/structural-critical (a pan-axis pedestal, bearing seats), or
+(b) physically coupled to the shell skin — sensor barrels through a wall, vents,
+light pipes, anything air- or hole-coupled to an exterior face. Everything else rides
+the base. Bonus: a base plate can deliberately SPAN a shell print-seam and tie the
+pieces together, replacing seam hardware.
+
+**Build the base against the shell, not into it**: model the base solid, then subtract
+the union of the shell pieces (plus a despeckle pass) so it auto-acquires clearance
+pockets for every floor feature it spans and can't silently clash.
+
+**Anti-pattern**: retrofitting a tray AROUND an existing hand-packed component layout.
+The tray fights every pocket and rib the old layout owned, and half the mounts stay
+fused in the shell anyway — you keep the reprint cost you were trying to kill. When
+adopting this split on an existing design, RE-LAY-OUT the components onto the base as
+a contiguous bay; don't notch a plate around them. (desk-pi learned this the slow way:
+the retrofit tray collided with the belly-opening rebate until the electronics were
+re-laid-out onto `chassis_base` and the base was relieved by boolean subtraction.)
+
 ## Deeper references (read on demand)
 
 - **`references/fdm-design-rules.md`**, print orientation, self-supporting geometry (45° roofs,

@@ -66,16 +66,86 @@ engine of last resort. The viewer/verify loop is identical either way.
 
 ## Iteration speed: don't rebuild the world per tweak
 
-100+ full `build.py` runs per session is normal; make each run cheap:
+100+ full `build.py` runs per session is normal; make each run cheap. finnish-doors
+(2026-07-22) measured this on a mature multi-subsystem assembly and the numbers are
+blunt: **geometry generation was ~3 s; the fit/contact audit was ~280–320 s (~99%)**.
+Never optimise the wrong half.
 
-- **Cache expensive imports.** An 85 MB STEP re-tessellated on every build made sweeps
-  "too slow to run". Hash the source file, cache the tessellated mesh
-  (`.claude/cache/<sha>.npz` or pickle), load instead of re-importing.
+### Measure first (build metrics)
+
+Instrument stages with wall-time + peak RSS *before* guessing. A small module
+(`src/metrics.py` in finnish-doors) is enough:
+
+- Nestable `with metrics.timed("housing"):` / `export.fitmap` around every expensive step.
+- Print a ranked table at the end; write `web/build_metrics.json` (latest).
+- **Archive every run** under `metrics/runs/<utc>_<gitsha>[_label].json` + append
+  `metrics/index.jsonl` so later sessions can compare.
+- Named pins: `python3 src/metrics.py save pre-change` → `metrics/baselines/<label>.json`.
+- Compare: `python3 src/metrics.py compare prev latest` or
+  `compare baseline:pre-change latest`. Warn when `SKIP_FITS` differs (totals are not
+  comparable if one run skipped the audit).
+- Label runs: `BUILD_METRICS_LABEL=post-fitmap-cache python3 src/build.py`.
+- Disable: `BUILD_METRICS=0`; quiet JSON-only: `BUILD_METRICS=quiet`.
+
+Without this, agents "optimise" housing booleans while fitmap still owns the wall clock.
+
+### Content-hash part cache (the real lever)
+
+Once metrics show which stages dominate, add a content-hash cache (finnish-doors
+`src/build_cache.py`, layout `.cache/build/` gitignored):
+
+| Layer | Key (inputs only) | On hit |
+|-------|-------------------|--------|
+| Per-part STL | `params.py` + builder modules + flag tokens | load STL, skip CSG |
+| Shared generators | e.g. `gen_flat_worm` called from build + coupon + assembly | compute once |
+| Assembly export | input STL digests + placement sources + env (`DRIVE`, `SKIP_FITS`) | skip GLB rebuild |
+| **Fitmap** | **posed-assembly fingerprint** (or same input digests) | reuse `fit_report.json` |
+
+**Hard rules (learned the expensive way):**
+
+1. **Key on INPUTS only. Never content-hash noisy outputs.** `fit_report.json` (signed
+   distance + intersection volumes) has float noise: hashing it as a validity input makes
+   every warm rebuild re-run the 280 s audit. Outputs need only *exist* on hit.
+2. **Optionally pin input STL digests** in the manifest and re-check them so a silent
+   overwrite of an STL still misses. Do not pin output content.
+3. **Share expensive generators.** A 3-start worm rebuilt three times per run (export STL,
+   coupon, assembly pose) is pure waste; put the cache *inside* the generator.
+4. **Restore mutable build state on hit.** If the housing builder writes
+   `state.HOUSING_Z0/Z1` for downstream boxes, stash those in the cache `meta` and restore
+   on load (loading STLs does not re-run the writer).
+5. **Controls:** `BUILD_CACHE=0` force rebuild; `BUILD_CACHE_CLEAR=1` wipe
+   `.cache/build/`; print hit/miss per key + summary (`hits=10 misses=0 hit_rate=100%`).
+6. **Measured win (finnish-doors, no geometry change):** cold ~300–325 s → warm **~0.8 s**,
+   peak RSS ~14 GB → ~300 MB, when assembly+fitmap both hit.
+
+`make watch` / live loops should keep `SKIP_FITS=1` (or full assembly-cache hit) so the
+viewer stays snappy; run `make fits` / a canonical full build when gates need the report.
+
+### Fitmap cost anatomy (so you know what to skip)
+
+A full fitmap pass on ~30–40 nodes (finnish-doors):
+
+- ~C(n,2) AABB prune → ~100–130 "close" pairs actually sampled.
+- Per close pair: ~2600 surface samples + `signed_distance` (**~280 s**, the wall).
+- Boolean `intersection` only on press candidates (**~1 s**).
+- `gc.collect()` after **every** pair cost **~5 s** for little OOM benefit; every 20 pairs
+  + once at the end is enough (~0.2 s). Still clear trimesh `_cache` per pair.
+- Seed surface sampling (`seed=0`) so the report is as stable as possible for git.
+
+Cache key for fitmap: fingerprint the *posed* assembly dict after any display→parametric
+swaps (name + face/vert counts + rounded bounds/area + a few vertex anchors). That is
+what signed_distance actually sees; STL digests alone miss pose bugs.
+
+### Other speed tactics (still useful)
+
+- **Cache expensive foreign imports.** An 85 MB STEP re-tessellated on every build made
+  sweeps unusable. Hash the source file, cache tessellation
+  (`.cache/` or `.claude/cache/<sha>.npz`), load instead of re-importing.
 - **`PREVIEW=1` mode**: lower `n_theta`/segment counts, skip STL export (GLB only), skip
   the heaviest decorative parts. Full resolution only for `EXPORT=1`. Threaded parts at
-  preview resolution are ~10x fewer faces and visually identical in the viewer.
+  preview resolution are ~10x fewer faces and still fine in the viewer.
 - **Per-part rebuild targets** (`make housing`), so a housing tweak doesn't regenerate
-  gears.
+  gears (or rely on the content-hash cache above).
 - **Placement/parameter sweeps against a coarse proxy.** Optimize against a decimated or
   voxel-remeshed skin (~5x faster per evaluation), then validate the winner against the
   full-res mesh (see `wallcheck.py`). Precompute anything reused across evaluations

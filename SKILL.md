@@ -78,14 +78,21 @@ project/
 ├── src/                ALL Python, run from repo root (`python3 src/build.py`):
 │   ├── build.py          source of truth, PARAMETERS block at top
 │   ├── build_<sub>.py    one per independent subsystem (keypad, conduit, ...), standalone
+│   ├── params.py         design numbers (when the facade is split; edit HERE)
+│   ├── metrics.py        stage wall-times + archived run history (see csg-robustness)
+│   ├── build_cache.py    content-hash part/assembly/fitmap cache (.cache/build/)
+│   ├── fitmap.py         clearance/press audit (often the slowest stage — cache it)
 │   ├── stlpaths.py       routes stlp("worm.stl") -> stl/drive/worm.stl by name prefix
 │   ├── export_bambu.py   packs parts onto plates, writes sliceable .3mf (bambu-3mf-export skill)
 │   ├── bambu3mf.py        the .3mf writer
 │   ├── serve.py          localhost viewer server
 │   └── shoot.py          headless multi-angle renders -> .claude/renders/
 ├── stl/<subsystem>/    organized output: drive/, housing/, keypad/, ... (routed by stlpaths.py)
-├── web/                viewer_glb.html + assembly.glb + assembly_dims.json. serve.py serves THIS
-│                       dir (so the viewer is at /, the model at /assembly.glb); auto-reloads on rebuild.
+├── web/                viewer_glb.html + assembly.glb + assembly_dims.json (+ fit_report.json,
+│                       build_metrics.json). serve.py serves THIS dir; auto-reloads on rebuild.
+├── metrics/            optional: archived build timings (runs/, baselines/, index.jsonl) for
+│                       compare-after-change. Small JSON; safe to commit named baselines.
+├── .cache/build/       content-hash cache (gitignored; regenerable). BUILD_CACHE=0 to bypass.
 ├── exports/            Bambu .3mf plates, one per profile/material group.
 └── firmware/           only if the project has electronics: the sketch + WIRING.md (pin map,
                         driver wiring, calibration constants). See dual-axis-turntable.
@@ -98,9 +105,10 @@ export stay in sync and nothing lands at the root. Bundled in `scripts/stlpaths.
 
 **The Makefile is the front door.** Targets seen across projects: `build` (rebuild all STLs +
 `web/assembly.glb`), `export` (write Bambu plates), `viewer` (serve), `shot` (headless render),
-`install`, `all`. End each target line with a trailing `## comment` so `make help` lists them.
-A subsystem with its own script gets its own target (`make keypad` → `python3 src/build_rotary_keypad.py`).
-Bundled in `scripts/Makefile`.
+`fits` (canonical fitmap), `watch` (rebuild with `SKIP_FITS=1` so the loop stays snappy),
+`metrics-list` / `metrics-compare`, `install`, `all`. End each target line with a trailing
+`## comment` so `make help` lists them. A subsystem with its own script gets its own target
+(`make keypad` → `python3 src/build_rotary_keypad.py`). Bundled in `scripts/Makefile`.
 
 **Conditional builds via env vars, not commented-out code.** dual-axis-turntable drives one
 `build.py` with `EXPORT=1` (write STLs, else just the GLB for the viewer), `SHELL=0`, `TILT=45`
@@ -150,9 +158,11 @@ trigger the first deploy by hand (`gh workflow run pages.yml`).
   `Makefile`, `requirements.txt`. Committing the current `assembly.glb` means a fresh clone shows
   the part in the viewer with no rebuild, and you get a visual diff history.
 - **Ignore:** `.claude/renders/`, scratch/iteration GLBs (`_t_*`, `_test_*`), `exports/*.3mf`
-  (regenerable), videos (`*.mp4 *.mov *.avi`), `__pycache__/`. Minimum `.gitignore`:
+  (regenerable), videos (`*.mp4 *.mov *.avi`), `__pycache__/`, **`.cache/`** (content-hash build
+  cache). Minimum `.gitignore`:
   ```
   .claude/renders/
+  .cache/
   _t_*
   _test_*
   exports/*.3mf
@@ -162,6 +172,8 @@ trigger the first deploy by hand (`gh workflow run pages.yml`).
   ```
   The anti-pattern: tracking every `_t_*.glb`/`.3mf` iteration at the repo root. It works, but the
   root becomes unreadable. Route outputs into `stl/` + `exports/` and ignore the scratch.
+  Optional: commit `metrics/baselines/*.json` (named timing pins) so cold vs warm / pre vs post
+  change comparisons survive clones; leave raw `metrics/runs/` untracked if it gets noisy.
 
 ### Variants on the layout
 
@@ -398,11 +410,18 @@ its `web/viewer_glb.html` + the sidecar writer in `src/build.py`):
   motion sweep) + `fitmap.py` (pairwise CLEARANCE MEASUREMENT + contact patches — booleans
   prove non-overlap, not non-press; a gearbox passed every boolean while seized at 0.00°
   backlash; run the canonical report at the NEUTRAL pose, and since a full-assembly pass
-  costs minutes keep it a flag like `FITS=1` / `make fits`, not part of the fast watch
-  loop) + `checks.py` design invariants + the insertion-path and torque-path
+  costs **minutes** — often ~99% of total build wall time on a mature scene — keep it a
+  flag like `FITS=1` / `make fits` / `SKIP_FITS=1` for watch, not part of the fast loop;
+  content-hash cache the fitmap result keyed by posed geometry so no-change rebuilds skip
+  it entirely — see `references/assembly-verification.md` "Fitmap is often the whole
+  build") + `checks.py` design invariants + the insertion-path and torque-path
   audits from `references/assembly-verification.md`. "Watertight and looks right from six
   angles" has shipped unassemblable parts to plastic more than once; the gate is what
   catches lugs bigger than notches, sealed pockets, and freewheeling bores.
+- **When a build "feels slow", measure before guessing.** Stage timers + archived
+  `metrics/runs/` (and `python3 src/metrics.py compare prev latest`) are how you learn that
+  housing CSG is fine and fitmap is the wall. Content-hash part cache + fitmap cache is the
+  fix; see `references/csg-robustness.md` "Iteration speed".
 - `mesh.is_watertight` and `mesh.is_winding_consistent` after every edit.
 - Print a feature-size report: smallest wall / tooth tip / thread crest. **< ~0.6 mm won't print**
   (the slicer's Arachne generator smooths it away).
@@ -500,8 +519,10 @@ re-laid-out onto `chassis_base` and the base was relieved by boolean subtraction
   render-legibility rules (bottom view, ghost mode hides interference, per-part colors).
 - **`references/csg-robustness.md`**, the trimesh/manifold3d boolean playbook (single-call
   booleans, morphological close, coincident-geometry jitter, artifact diagnosis), the
-  build123d on-ramp, and iteration-speed tactics (mesh caching, PREVIEW mode, coarse-proxy
-  sweeps).
+  build123d on-ramp, and **iteration-speed tactics**: stage metrics + archived run
+  history, content-hash part/assembly/fitmap cache (never hash noisy fit_report outputs),
+  shared generators, PREVIEW mode, coarse-proxy sweeps. finnish-doors measured
+  no-change rebuilds at ~300 s → ~0.8 s with cache hot.
 - **`references/components-verified.md`**, the never-model-bought-parts-from-memory rule and
   session-verified dimensions for the recurring hardware (28BYJ-48, TT motor, driver/charge/
   boost boards, 18650 holders, 608, keypads, Pi + touchscreen), plus the

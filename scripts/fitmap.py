@@ -30,6 +30,13 @@ WHY THIS EXISTS (each clause a real shipped failure):
 Usage:
     python3 fitmap.py assembly.glb [-o fit_report.json] [--near 2.5] [--patch 0.6]
                       [--samples 2600] [--skip door battery] [--far 2.0]
+
+COST (finnish-doors, 2026-07-22): on a ~30–40 node assembly this gate is often ~99% of
+total build wall time (~280–320 s of signed_distance; booleans ~1 s). Keep it OUT of the
+watch loop (SKIP_FITS=1 / make watch). Content-hash cache the result keyed by the *posed*
+assembly fingerprint — never by fit_report.json content (float noise forces perpetual
+misses). Clear trimesh caches every pair; gc.collect every ~20 pairs, not every pair.
+See skill references/assembly-verification.md and csg-robustness.md ("Iteration speed").
 """
 import argparse
 

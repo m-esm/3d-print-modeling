@@ -105,6 +105,41 @@ moving of its two parts: child group > parent group > fixed), so the 3D overlay 
 correct at any joint-slider pose and on any baked GLB. And keep the fit pass OPT-IN
 behind a flag: a full-assembly report costs minutes, which kills a ~2 s watch loop.
 
+### Fitmap is often the whole build (cache it correctly)
+
+Measured on finnish-doors (2026-07-22), a mature multi-subsystem assembly:
+
+| Stage | Wall time | Share |
+|-------|----------:|------:|
+| All part CSG + housing | ~3 s | ~1% |
+| **fitmap `signed_distance`** | **~280–320 s** | **~99%** |
+| press-confirm booleans | ~1 s | |
+| `gc.collect()` every pair | ~5 s (waste) | |
+
+So: instrument with stage timers first; do not "speed up the build" by thinning housing
+walls while fitmap still owns the wall clock. Details and the content-hash recipe live in
+`references/csg-robustness.md` ("Iteration speed"); the fitmap-specific rules:
+
+1. **`SKIP_FITS=1` / `make watch` for the live loop.** Canonical report only when gates
+   need it (`make fits`, pre-PR, after joint/fit changes).
+2. **Cache the *result* of fitmap, keyed by the posed assembly, not by the report file.**
+   A geo fingerprint (node names + face/vert counts + rounded bounds/area + a few vertex
+   anchors, after any display→parametric motor swap) is enough. On hit: leave
+   `fit_report.json` alone and skip the signed_distance loop entirely.
+3. **Never put `fit_report.json` content into the cache validity hash.** Intersection
+   volumes and signed distances float-churn; hashing the report as an input makes every
+   warm rebuild miss and re-pay ~5 minutes. Outputs are existence-only on hit.
+4. **GC discipline:** clear trimesh `_cache` per pair (OOM lesson), but call
+   `gc.collect()` every ~20 pairs + once at the end, not every pair (~5 s → ~0.2 s).
+5. **Seed surface sampling** (`seed=0`) so the report is as stable as git will allow;
+   expect residual float noise and do not fight it with content hashes.
+6. **Peak RSS can hit tens of GB** during a full fitmap on a half-million-face scene;
+   a cache hit drops that to a few hundred MB. Do not run two full builds in parallel.
+
+With part cache + assembly/fitmap cache both hot, a no-change `python3 src/build.py` on
+finnish-doors fell from ~300 s to **~0.8 s** (100% hit rate). That is the iteration target
+for any project that has grown a fitmap gate.
+
 ## Design-invariant checks: unit tests for geometry
 
 User-approved features get silently deleted by later, unrelated edits. It happened

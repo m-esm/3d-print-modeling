@@ -1,0 +1,116 @@
+# 3D DESIGN RULES (mandatory, all agents: Claude / Grok / Codex / Kimi)
+
+Hard rules for every parametric-CAD project in this workspace (Python + trimesh/manifold3d,
+FDM printing on a Bambu A1, 0.4 mm nozzle, PLA/PETG). Every one of these was paid for with
+a failed print or a physically un-assemblable part that passed all renders. Read this
+BEFORE touching geometry. Cite rules by number in reviews and fix ledgers (e.g. "violates
+R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
+`docs/AGENT-LOOP.md`; this file is the cross-project floor.
+
+## R1. Printability
+
+- **R1.1 Minimum feature 0.6 mm; structural walls >= 0.8 mm.** Anything thinner is
+  silently smoothed away by the slicer (Arachne), it will not exist in the print. Walls in
+  multiples of 0.4 slice cleanest. Load-bearing: >= 0.8.
+- **R1.2 Overhangs <= 45 deg self-support; flat internal ceilings do not print.** Close a
+  cavity with a 45 deg gable/taper, or open it upward. Support inside internal features is
+  unremovable, design it out, don't "let support handle it".
+- **R1.3 Declare the print orientation at design time, per part.** Raised detail on a
+  bed-facing side floats the whole part on stilts; engrave flush instead. Open-top
+  cavities up; lids flat-top-down; crisp detail face-down.
+- **R1.4 Holes print undersize.** Add ~0.2 mm diametral on vertical bores, more on
+  horizontal ones. Never design a running bore at nominal diameter.
+- **R1.5 Layers are weak in peel/tension.** Orient parts so drive loads, snap-arm roots,
+  and thin necks are loaded along layer lines, not across them.
+- **R1.6 Never print a gear with a coaxial pin/journal attached.** Split into gear (flat
+  on bed) + pin (vertical), joined by hex/square flats. One-sided journal printed
+  gear-face-down is the only exception.
+- **R1.7 Material is a mechanical decision.** PLA creeps under sustained load and softens
+  ~50 C. Springs, snaps, and continuously loaded gears want PETG.
+- **R1.8 Print-in-place gaps >= 0.4 mm** or the parts fuse into one.
+
+## R2. Clearances and collisions
+
+- **R2.1 Nothing runs at zero.** Running fits >= 0.2-0.3 mm per side; slide-together
+  joints ~0.4-0.5. FDM bias: plugs print oversize, cavities undersize.
+- **R2.2 Boolean "no overlap" proves neither "no press" nor "it turns".** Measure signed
+  clearance (fitmap) and, for gears, backlash rotate-until-contact in both directions.
+  0.00 deg of play is a bind even when booleans pass.
+- **R2.3 Sweep everything that moves across FULL travel to the hard stops** (stall
+  angles, not the software limit), against the fixed parts, the parent group, AND the
+  other clamshell half / lid. A neutral-pose check misses most collisions.
+- **R2.4 Whitelists stay honest.** Only named, designed contacts (seats, presses, meshes)
+  get whitelisted, pair-specific, with a reason. A new unexpected contact is a failing
+  gate to investigate, never a whitelist entry to add.
+- **R2.5 Every clearance is a named parameter** with a one-line why. No magic 0.25s
+  scattered in geometry code.
+
+## R3. Assembly (can it physically go together?)
+
+- **R3.1 Every part needs a real insertion path**: through which opening, in what order,
+  what blocks it. Verify the PATH (swept translate, parts present at that assembly stage),
+  not just the final pose. Perfect final-pose clearance with no way in is a broken design.
+- **R3.2 A part can be trapped by a feature added later for another part.** Re-check
+  insertion paths after ANY housing/pocket/wall edit.
+- **R3.3 Bearings, nuts, and bought parts drop in AFTER printing** through open pockets.
+  Nothing captured mid-print (no pause-and-insert designs unless the user asks).
+- **R3.4 Bench-assemble cartridges.** Motor + worm + bearings build as a unit on the bench
+  and drop in together; don't design screws deep inside a shell.
+- **R3.5 The moment assembly order matters, write it into `docs/ASSEMBLY.md`.**
+
+## R4. Screws and nuts
+
+- **R4.1 Threads live in metal, not plastic.** Captive hex-nut pocket (across-flats
+  + ~0.2, depth + ~0.2) or heat-set insert. Self-tapping into printed plastic only for
+  one-time, low-load joints, with a pilot ~0.8-0.85x the thread OD, and documented as a
+  deliberate exception.
+- **R4.2 Clearance hole = nominal + ~0.4** (M3 -> 3.4). Counterbore or recess the head;
+  verify driver access to every head. A driver channel longer than ~50 mm is a design
+  smell, redesign the joint.
+- **R4.3 Do the stack math per joint.** Screw length must cover the clamped stack plus
+  full nut engagement; a screw that bottoms out, or bites nothing (every hole a clearance
+  hole), passes every render and clamps nothing.
+- **R4.4 The nut must be insertable.** Check the physical gap for the nut and the tool
+  that holds it. If no nut fits in the space, redesign or switch to a documented
+  self-tap/insert, don't model a nut that can't get there.
+- **R4.5 Default to drawer hardware: M3 workhorse, M2 tight/light, M4 for real load.**
+  Don't design around specialty fasteners the user must buy when common ones work.
+
+## R5. Torque and load paths
+
+- **R5.1 Name the feature carrying torque at EVERY interface** (D-flat, hex, key,
+  spline). A plain round bore is a freewheel. A press fit on a smooth rod creeps loose in
+  plastic under sustained torque.
+- **R5.2 Never neck a load-bearing shaft down** to pass a bearing bore; it breaks at the
+  neck. Re-journal or relocate the bearing instead.
+- **R5.3 Springs never sit in the drive path.** Load goes through rigid features; springs
+  only reseat/return. A spring that sees drive torque creeps or shears.
+- **R5.4 Current-limit the motor and never dwell at stall.** Stall torque through a high
+  ratio shears printed features; treat the current limit as the shear fuse and park/home
+  at a rest position, not against a stop under power.
+- **R5.5 Grease the meshes**; design running clearance as a grease reservoir. Lubrication
+  is the biggest life factor for printed gears.
+
+## R6. Bought parts
+
+- **R6.1 Never model a bought part from memory.** Datasheet, caliper, or user-supplied
+  STL/STEP. Echo the critical dims back for confirmation before geometry depends on them.
+- **R6.2 Mark estimated dims as ESTIMATE, caliper before printing.** Guessed motors,
+  boards, keypads, and battery holders have each cost a reprint.
+
+## R7. Verify before saying "done"
+
+- **R7.1 After every geometry change: rebuild, render multiple angles + section cuts +
+  the bottom view, and actually read the images.** Numeric gates miss visual bugs; the
+  file path is not the render. Ghost/translucent renders hide interference, contact
+  questions get numbers.
+- **R7.2 Run the repo's gates** (make targets in `AGENTS.md`) before claiming done. Green
+  gates plus at least one read screenshot is the floor.
+- **R7.3 Encode every user-approved feature as a check/invariant the same turn** it is
+  approved. Never weaken or delete a check or whitelist entry without explicit user
+  sign-off; a failing check means the geometry regressed.
+- **R7.4 Friction, snap, press, and spring behavior cannot be verified virtually.** Say
+  "needs a test print to dial in" plainly instead of claiming it works from a render.
+- **R7.5 Restate spatial instructions in axis terms before implementing** ("user 'up' =
+  +Y on the door, correct?"). If the user corrects the same pose twice, stop iterating
+  and ask which faces/edges mate.

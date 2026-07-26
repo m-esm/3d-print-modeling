@@ -74,7 +74,8 @@ project/
 ├── requirements.txt    PINNED deps (trimesh + manifold3d as a pair). `make install` runs it.
 ├── .gitignore          see "what to commit" below.
 ├── docs/               ASSEMBLY.md (BOM, which part on which plate, assembly order), motor/
-│                       bearing datasheets, one reference Bambu .3mf for the profile template.
+│                       bearing datasheets, one reference Bambu .3mf for the profile template,
+│                       and DESIGN-RULES.md (see "Seed the hard rules" below).
 ├── src/                ALL Python, run from repo root (`python3 src/build.py`):
 │   ├── build.py          source of truth, PARAMETERS block at top
 │   ├── build_<sub>.py    one per independent subsystem (keypad, conduit, ...), standalone
@@ -500,8 +501,27 @@ a contiguous bay; don't notch a plate around them. (desk-pi learned this the slo
 the retrofit tray collided with the belly-opening rebate until the electronics were
 re-laid-out onto `chassis_base` and the base was relieved by boolean subtraction.)
 
+## Seed the hard rules into every project (external agents don't load skills)
+
+Grok/Codex/Kimi CLI workers and non-skill sessions never read this skill, so the distilled
+hard rules must live IN each repo. When starting (or first touching) a 3D project:
+
+1. Copy **`references/design-rules-checklist.md`** to the repo as **`docs/DESIGN-RULES.md`**.
+2. Add a mandatory pointer at the TOP of the repo's `AGENTS.md` (create one if missing) and
+   in `CLAUDE.md`: "read `docs/DESIGN-RULES.md` before any geometry work; cite rule numbers".
+3. Briefs dispatched to external CLIs must name the file explicitly and put the repo's
+   geometry gates in the acceptance criteria.
+
+The checklist is the numbered floor (R1 printability, R2 clearances/collisions, R3
+insertion paths, R4 screws/nuts, R5 torque paths, R6 bought parts, R7 verification);
+the references below carry the full rationale. If a project's copy drifts from the
+skill copy, the skill copy wins, sync it.
+
 ## Deeper references (read on demand)
 
+- **`references/design-rules-checklist.md`**, the numbered cross-project hard-rule floor
+  (R1-R7) that gets seeded into each repo as `docs/DESIGN-RULES.md`; self-contained so
+  non-Claude agents can follow it.
 - **`references/fdm-design-rules.md`**, print orientation, self-supporting geometry (45° roofs,
   run-outs), min feature size, support strategy, PLA vs PETG, hoop stress for pressure parts,
   warp/adhesion, the "slicer settings beat geometry hollowing" lesson.

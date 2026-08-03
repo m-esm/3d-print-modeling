@@ -40,10 +40,15 @@ R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
   angles, not the software limit), against the fixed parts, the parent group, AND the
   other clamshell half / lid. A neutral-pose check misses most collisions.
 - **R2.4 Whitelists stay honest.** Only named, designed contacts (seats, presses, meshes)
-  get whitelisted, pair-specific, with a reason. A new unexpected contact is a failing
-  gate to investigate, never a whitelist entry to add.
+  get whitelisted, pair-specific, with a reason AND a volume/clearance floor when the
+  pair can dig elsewhere. A blanket `partA × partB` allow that swallows 50 mm³ of real
+  dig-in is a bug factory (paddle×servo, cover×tray). Prefer positive clear gates.
+  A new unexpected contact is a failing gate to investigate, never a whitelist entry to add.
 - **R2.5 Every clearance is a named parameter** with a one-line why. No magic 0.25s
   scattered in geometry code.
+- **R2.6 Reach is multi-axis.** A 1-D Z (or length-only) reach gate can pass while the
+  pad/foot track has moved off in X/Y. Gate track ⊆ pad extents, body clearance, and
+  mesh kiss at the press pose across the stroke.
 
 ## R3. Assembly (can it physically go together?)
 
@@ -51,12 +56,18 @@ R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
   what blocks it. Verify the PATH (swept translate, parts present at that assembly stage),
   not just the final pose. Perfect final-pose clearance with no way in is a broken design.
 - **R3.2 A part can be trapped by a feature added later for another part.** Re-check
-  insertion paths after ANY housing/pocket/wall edit.
+  insertion paths after ANY housing/pocket/wall edit. Late unions (gussets, decks) must
+  re-subtract functional keepouts (driver wells, cable exits) or they reseal cuts.
 - **R3.3 Bearings, nuts, and bought parts drop in AFTER printing** through open pockets.
   Nothing captured mid-print (no pause-and-insert designs unless the user asks).
 - **R3.4 Bench-assemble cartridges.** Motor + worm + bearings build as a unit on the bench
   and drop in together; don't design screws deep inside a shell.
 - **R3.5 The moment assembly order matters, write it into `docs/ASSEMBLY.md`.**
+- **R3.6 Seat pad ≠ clamp.** A face that only rests on a deck has no peel/preload path.
+  Name the preload (ledge undercut, screw into plug, captive nut). Opposite-facing
+  pocket mouths cannot share one rigid finger on a single slide direction — use a
+  separate plug+screw or a second motion. Do not thrash pad XY when the failure is
+  missing preload.
 
 ## R4. Screws and nuts
 
@@ -65,8 +76,8 @@ R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
   one-time, low-load joints, with a pilot ~0.8-0.85x the thread OD, and documented as a
   deliberate exception.
 - **R4.2 Clearance hole = nominal + ~0.4** (M3 -> 3.4). Counterbore or recess the head;
-  verify driver access to every head. A driver channel longer than ~50 mm is a design
-  smell, redesign the joint.
+  verify driver access to every head (probe the well empty of solid after ALL unions).
+  A driver channel longer than ~50 mm is a design smell, redesign the joint.
 - **R4.3 Do the stack math per joint.** Screw length must cover the clamped stack plus
   full nut engagement; a screw that bottoms out, or bites nothing (every hole a clearance
   hole), passes every render and clamps nothing.
@@ -82,7 +93,8 @@ R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
   spline). A plain round bore is a freewheel. A press fit on a smooth rod creeps loose in
   plastic under sustained torque.
 - **R5.2 Never neck a load-bearing shaft down** to pass a bearing bore; it breaks at the
-  neck. Re-journal or relocate the bearing instead.
+  neck. Re-journal or relocate the bearing instead. Prefer glue-slip + stock screw core
+  across the layer plane when pure printed stubs snap and metal mods are banned.
 - **R5.3 Springs never sit in the drive path.** Load goes through rigid features; springs
   only reseat/return. A spring that sees drive torque creeps or shears.
 - **R5.4 Current-limit the motor and never dwell at stall.** Stall torque through a high
@@ -90,6 +102,9 @@ R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
   at a rest position, not against a stop under power.
 - **R5.5 Grease the meshes**; design running clearance as a grease reservoir. Lubrication
   is the biggest life factor for printed gears.
+- **R5.6 Strength-gate load-bearing printed features** that break by hand (lugs, spigots,
+  thin arms): mesh plane-cut A/S + multi-load util with interlayer peel derate and a
+  design SF on normal-use forces. Param W×H alone is not enough.
 
 ## R6. Bought parts
 
@@ -97,6 +112,12 @@ R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
   STL/STEP. Echo the critical dims back for confirmation before geometry depends on them.
 - **R6.2 Mark estimated dims as ESTIMATE, caliper before printing.** Guessed motors,
   boards, keypads, and battery holders have each cost a reprint.
+- **R6.3 Datum mates off the OEM stack.** Horn/servo/blade planes hang off the measured
+  spline tip / socket / collar, not a convenient printed face. Pocket outline from the
+  measured arm hull when the part is bought.
+- **R6.4 Interacting bought hardware is geometry.** Return springs, pins, and horns that
+  occupy volume during motion need display meshes (NON_PRINTED OK). Coil-bind =
+  coils × wire. Absence from the mesh is not a free pass.
 
 ## R7. Verify before saying "done"
 
@@ -114,3 +135,9 @@ R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
 - **R7.5 Restate spatial instructions in axis terms before implementing** ("user 'up' =
   +Y on the door, correct?"). If the user corrects the same pose twice, stop iterating
   and ask which faces/edges mate.
+- **R7.6 Freeze already-printed interfaces.** Archive as-printed STLs + fail-closed
+  sym-diff gates; redesign the unprinted mate around them. Rebuild viewer
+  assembly.glb + pose.json the same turn kinematics change; gate pose freshness.
+- **R7.7 Probe solid under seats.** Pad-over-window must hit solid frame volume just
+  below the deck (thin slab ∩ frame), not only Y-overlap with a pocket that is open
+  from the side under a solid roof.

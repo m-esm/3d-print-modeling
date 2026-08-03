@@ -27,6 +27,16 @@ logged in one project). This is the playbook distilled from what actually fixed 
   feature that lives inside the cut volume (a collar smaller than the port hole being
   subtracted vanished entirely). Order: cut the openings first, then union small external
   features, or exclude the feature's volume from the cutter.
+- **Late unions reseal cuts.** Corner gussets, decks, or "reinforce after" unions
+  re-fill driver wells and cable exits if keepouts are not re-subtracted. Register
+  functional openings as keepouts for every post-cut union (R3.2).
+- **Never reuse the same trimesh instance as both cutter and keepout.** Manifold may
+  consume or corrupt the mesh; build fresh keepout solids for the second pass. Reuse
+  was enough to make `cover_front` non-volume after an otherwise correct well cut.
+- **Crush ribs after pocket cuts**, or the relief that opens the bay guts the rib
+  annulus. Union ribs last; gate pilot-meat annulus volume in solid plastic.
+- **Structural underface first, openings second.** Hollowing a free-span face then
+  hoping ribs appear leaves membranes the thin-shell audit must catch.
 
 ## Diagnosis, when a boolean output is wrong anyway
 

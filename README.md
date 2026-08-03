@@ -71,8 +71,12 @@ Or invoke it explicitly with `/3d-print-modeling`.
 ```
 SKILL.md                 the skill itself (workflow + FDM rules Claude reads)
 references/
-  fdm-design-rules.md    print orientation, supports, min feature size, PLA vs PETG
-  mechanisms-and-fits.md gears/worms, keyed bores, press-fits, bearings, clutches
+  design-rules-checklist.md  R1–R7 hard-rule floor (seed as docs/DESIGN-RULES.md)
+  hard-won-patterns.md       clamp/whitelist/OEM-datum/strength patterns (2026)
+  fdm-design-rules.md        print orientation, supports, min feature size, PLA vs PETG
+  mechanisms-and-fits.md     gears/worms, retention, servo mates, springs, bearings
+  assembly-verification.md   fitmap, freezes, retention audit, pose freshness
+  csg-robustness.md          boolean playbook + late-union keepouts + cache
 scripts/                 generic, copy into a project as needed
   serve.py               localhost static server for the viewer
   shoot.py               headless multi-angle Playwright renders

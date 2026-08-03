@@ -189,3 +189,43 @@ A high-ratio drive easily exceeds what the load needs while PLA/PETG features sh
 **current-limit the motor (treat stall current as a shear fuse)** and **home/park the output at a hard rest
 position** so it never drives into a stop. **Grease the meshes**, lubrication was the single biggest life
 factor in FDM-gear testing (5×+ life); design the running clearance as a grease reservoir.
+
+## Cover / panel retention (clamp vs rest)
+
+- **A seat pad on a return deck is a bearing surface, not a clamp.** Without undercut, screw
+  preload, or interference, the panel peels. Green "solid under pad" + 0.05 gap can still
+  mean free lift.
+- **Opposite pocket mouths ≠ one slide.** Top windows open north; bottom open south: rigid
+  fingers cannot both ride a single −Y cover slide. Solutions that worked: top tenons under
+  ledge + **south lock plugs** into frozen windows with front M3 self-taps into the plugs
+  preloading the pads. Pad-only "south matches north" was a multi-session false fix.
+- **Cantilever snap clips** for daily open/close often break at the root when bent across
+  layers (strain 10–22% vs PETG interlayer ~1–3%). Prefer rigid tenons + screws for product
+  covers; keep snaps for light duty with layer-aligned flex.
+- **Archive frozen frames** and redesign the cover around them; do not move printed window
+  cutters to suit a new cover fantasy.
+
+## Servo / horn / paddle mates
+
+- Datum the paddle plane off the **spline tip + OEM socket stack**, not gear-cap height +
+  half a thin plane width (that digs the cap when the arm is wider).
+- Pocket = convex hull of the measured horn arm (+clear); through bore for collar + OEM
+  head when the head seats on the horn, not printed plastic.
+- Whitelist only horn×spline / horn×pocket kisses with mm³ floors; never blanket
+  paddle×servo.
+- Reach: foot track must stay inside the press pad in X and Y across the stroke; Z-only
+  reach gates lie.
+
+## Return springs and retention pins
+
+- Model coils as pose-aware display geometry; first mesh often proves stations too far in
+  (coil vs skirt). Coil-bind = **counted coils × wire**, gate clearance at full travel.
+- Short spigots drop coils; multi-coil pin + seat land + light tip barb holds better. Side-load
+  strength for a spring-braced pin is free tip length, not full pin L.
+- Fixed barrels must stay flush with the FLIP_X bed face or the print stands on stilts.
+
+## Printed pins under layer peel
+
+Vertical stubs snap at the shoulder root under bending. Glue-slip printed journal + **stock
+screw core** across the Z-layer plane (no metal mod to the race) survived where pure PLA
+and press-fit races cracked.

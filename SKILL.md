@@ -55,6 +55,10 @@ for meshes. See "Pick the engine first" below.
    the dims back for confirmation before geometry depends on them. Guessed motors, boards,
    keypads, and battery holders have each cost a reprint. Measured library + checklist:
    **`references/components-verified.md`**.
+7. **Seat pad ≠ clamp; whitelist floors; OEM datums.** A pad that only rests has no
+   preload. Blanket `A×B` designed-contacts hide digs. Hang mates off the measured OEM
+   stack. Model coils/horns that occupy volume. Full pattern set:
+   **`references/hard-won-patterns.md`** (2026 intercom/Klonk).
 
 ## Project layout (set this up before modeling, not after)
 
@@ -419,6 +423,13 @@ its `web/viewer_glb.html` + the sidecar writer in `src/build.py`):
   audits from `references/assembly-verification.md`. "Watertight and looks right from six
   angles" has shipped unassemblable parts to plastic more than once; the gate is what
   catches lugs bigger than notches, sealed pockets, and freewheeling bores.
+- **Retention self-check** (before claiming a cover/lid clamps): named preload path;
+  solid under pad (slab ∩ frame); driver wells empty after late unions; no opposite-mouth
+  single-slide fantasy. See hard-won-patterns §1 and assembly-verification "Retention".
+- **Kinematics self-check**: OEM datum, multi-axis reach, pose.json regenerated with GLB,
+  DESIGNED contacts volume-capped or replaced by clear gates.
+- **Strength self-check** for hand-breakable features: mesh A/S + multi-load util with SF,
+  not only param floors.
 - **When a build "feels slow", measure before guessing.** Stage timers + archived
   `metrics/runs/` (and `python3 src/metrics.py compare prev latest`) are how you learn that
   housing CSG is fine and fitmap is the wall. Content-hash part cache + fitmap cache is the
@@ -520,29 +531,27 @@ skill copy, the skill copy wins, sync it.
 ## Deeper references (read on demand)
 
 - **`references/design-rules-checklist.md`**, the numbered cross-project hard-rule floor
-  (R1-R7) that gets seeded into each repo as `docs/DESIGN-RULES.md`; self-contained so
-  non-Claude agents can follow it.
+  (R1-R7, incl. R2.6 reach, R3.6 pad≠clamp, R5.6 strength util, R6.3–6.4 OEM/bought mesh,
+  R7.6 freeze/pose, R7.7 solid-under-seat) seeded into each repo as `docs/DESIGN-RULES.md`.
+- **`references/hard-won-patterns.md`**, 2026-07/08 Klonk + Fermax intercom patterns:
+  clamp physics, honest whitelists, OEM datums, display springs, multi-axis reach, freeze
+  archives, mesh strength util, late-union keepouts, viewer pose freshness, printed-pin
+  cores. Read when retention, servo mates, or false-green gates bite.
 - **`references/fdm-design-rules.md`**, print orientation, self-supporting geometry (45° roofs,
   run-outs), min feature size, support strategy, PLA vs PETG, hoop stress for pressure parts,
   warp/adhesion, the "slicer settings beat geometry hollowing" lesson.
 - **`references/mechanisms-and-fits.md`**, gears/worms (module vs teeth vs lead angle), keyed
   bores + manual override, press-fits / clearances / snap vs friction joints (incl. snap-tongue
-  service doors), screws/nut traps, bearings, one-way clutches, motor coupling, service
-  cartridges + stall-homing hard stops, closed loops of discrete links (tracks/chains/belts),
-  and which of these *must* be dialed in on a test print.
+  service doors), cover/panel retention, servo/horn/paddle mates, return springs + pins,
+  screws/nut traps, bearings, one-way clutches, motor coupling, service cartridges +
+  stall-homing hard stops, closed loops of discrete links (tracks/chains/belts).
 - **`references/assembly-verification.md`**, the pre-export gate: interference + motion-sweep
-  audit (incl. swept-envelope-as-design-input for mechanisms inside shells, sweeping to stall
-  stops), the FIT MAP (`fitmap.py`: measured clearance/press + contact patches per pair, gear
-  backlash measurement, insertion-PATH sweeps — states vs processes, neutral-pose canon for
-  articulated assemblies), insertion-path and torque-path checklists, design-invariant tests,
-  the multi-agent pre-print review, the spatial-language/orientation protocol, and
-  render-legibility rules (bottom view, ghost mode hides interference, per-part colors).
-- **`references/csg-robustness.md`**, the trimesh/manifold3d boolean playbook (single-call
-  booleans, morphological close, coincident-geometry jitter, artifact diagnosis), the
-  build123d on-ramp, and **iteration-speed tactics**: stage metrics + archived run
-  history, content-hash part/assembly/fitmap cache (never hash noisy fit_report outputs),
-  shared generators, PREVIEW mode, coarse-proxy sweeps. finnish-doors measured
-  no-change rebuilds at ~300 s → ~0.8 s with cache hot.
+  audit, FIT MAP, insertion/torque paths, **retention and whitelist audits**, datum/reach
+  gates, freeze interfaces, strength gates, bought hardware in mesh, multi-agent pre-print
+  review, spatial-language protocol, render legibility.
+- **`references/csg-robustness.md`**, trimesh/manifold3d playbook (single-call booleans,
+  late-union keepouts, fresh keepout instances, crush-ribs-after-cuts, underface-first),
+  build123d on-ramp, iteration-speed / content-hash cache. finnish-doors: ~300 s → ~0.8 s.
 - **`references/components-verified.md`**, the never-model-bought-parts-from-memory rule and
   session-verified dimensions for the recurring hardware (28BYJ-48, TT motor, driver/charge/
   boost boards, 18650 holders, 608, keypads, Pi + touchscreen), plus the

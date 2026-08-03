@@ -211,3 +211,58 @@ Rules:
 - **Isolate to diagnose**: a debug render mode that hides occluders (wheels off, lid off)
   is worth the two minutes it takes; welded-in geometry is invisible inside a 675k-face
   shell.
+
+## Retention and clamp audit (pad ≠ preload)
+
+The intercom cover burned many sessions "fixing south clamps" by moving seat pads.
+Gates said solid area + 0.05 gap; the cover still lifted. Checklist before calling a
+joint clamped:
+
+1. **Preload path named** (ledge undercut, M3 into plug, captive nut stack). Friction
+   on a deck alone is not a clamp.
+2. **Window mouth direction vs slide direction.** Opposite mouths cannot share one
+   rigid finger on a single −Y slide; use a separate plug+screw or a second motion.
+3. **Solid under pad**: thin slab just below the return top ∩ frame mesh (not only
+   Y-overlap with a side-open pocket under a solid roof).
+4. **Driver access after ALL unions**: late gussets reseal wells; keepouts must be
+   re-applied; probe the well empty of solid.
+5. **Do not delete a working screwed plug** to "simplify" without a replacement preload.
+
+## Honest DESIGNED_CONTACTS / whitelist floors
+
+A pair allowlist without a volume floor hides digs: `paddle × servo` blessed 54 mm³ of
+paddle-into-gear-cap. Prefer:
+
+- Positive gates: swept clear 0.000, west-face clear ≥ margin, horn kiss ≤ 0.05 mm³.
+- Pair-specific allows only for the intended seat, with a dig ceiling.
+- Unmask → fix every red the same turn (second defects often hide under the same blanket).
+
+## Datum and reach gates (kinematics)
+
+- Hang paddle/horn planes off the **OEM stack** (spline tip, socket depth, collar proud),
+  not a convenient printed face of different width.
+- Pocket outline = convex hull of measured arm slab + FDM clear, not a pinched trapezoid.
+- Reach gates need **X and Y track ⊆ pad**, body clear, mesh kiss — not Z-only.
+- Rebuild `assembly.glb` + `assembly.pose.json` together; gate pose freshness vs datums.
+  Animation should track contact (lift profile), not linear sink from stroke 0.
+
+## Frozen printed interfaces
+
+When the user has already printed a collar/frame/housing:
+
+1. Archive the as-printed STL under `cad/.../printed/` (content hash).
+2. Fail-closed freeze gate: sym-diff volume + bounds vs archive.
+3. Frame-side cutter numbers live in a FROZEN INTERFACE param block.
+4. Redesign only the unprinted mate (cover, blocks, pads).
+
+## Strength gates for features that snap by hand
+
+Parametric W×H floors passed on 3×3 lugs and Ø2.6×0.7 spigots that broke in the hand.
+Add mesh plane-cut A/S along the span + multi-load util (side, peel with interlayer
+derate, spigot Kt) with design SF on normal-use forces. Size floors remain backups.
+
+## Bought hardware in the mesh
+
+Return springs absent from geometry left coil-skirt collisions invisible. Display
+(NON_PRINTED) helices pose-aware; coil-bind = coils × wire; count coils on the bench.
+Gate solid-length clearance and station radius vs skirt sweep.

@@ -187,8 +187,23 @@ the foot arrives.
 
 - Prefer glue-slip printed journal + stock screw core across the layer-failure plane when
   metal mods are banned.
-- Glue-slip races (+0.0 to +0.05 over press) when press cracks thin tubes.
+- Glue-slip races (+0.0 to +0.05 over press) when press cracks thin tubes. Redimensioning
+  a failed press-fit never closed one of these bugs; only a fit-class change (glue-slip)
+  or a steel core did. Treat "print again with tighter/looser interference" as a smell.
 - Vertical-print pins: steel across Z-layer plane beats pure PLA at the root.
+- Self-tap pilot sizing: shank minus ~0.3 (M3 → Ø2.7, M5 → Ø4.25). Bury the head in an
+  internal counterbore so the part's OD (and its mating bores) stay untouched.
+- Order of operations when a screw core meets a glued race: CA the stub into the race
+  FIRST, drive the screw after cure — the race gives hoop confinement while the thread
+  bites; the reverse order splits the stub.
+- Thin necks between fat features are where vertical prints break. Fatten torque tubes to
+  the neighboring collar diameter with 45° cones (0.9 → 1.78 mm wall was ~3.8× torsion J
+  at the failure plane).
+- Glue that commits a bought part (motor shaft into a printed bore) is a one-way door:
+  bench-verify mesh sense / throw / click direction first, glue last.
+- Print-in-place compliant features (accordion/serpentine springs, flexures) must never
+  sit in the torque path — they only reseat or return (a few N); drive load goes through
+  rigid bosses. Any flexing member carrying drive torque is a redesign flag.
 
 ## 13. Snap clips vs rigid retention (interlayer)
 

@@ -127,6 +127,12 @@ Once metrics show which stages dominate, add a content-hash cache (finnish-doors
    `.cache/build/`; print hit/miss per key + summary (`hits=10 misses=0 hit_rate=100%`).
 6. **Measured win (finnish-doors, no geometry change):** cold ~300–325 s → warm **~0.8 s**,
    peak RSS ~14 GB → ~300 MB, when assembly+fitmap both hit.
+7. **The assembly-export key must content-fingerprint the PLACEMENT source files** (a
+   declared `ASSEMBLY_SOURCE_DEPS` list: assembly.py + everything that poses parts),
+   not just the input STL digests. Placement/pose edits change no STL, and without the
+   source fingerprint they serve a stale GLB — the bug looks like "my edit did nothing".
+   With it, placement edits bust the cache automatically and `BUILD_CACHE_CLEAR=1` is
+   only ever needed for a corrupt manifest.
 
 `make watch` / live loops should keep `SKIP_FITS=1` (or full assembly-cache hit) so the
 viewer stays snappy; run `make fits` / a canonical full build when gates need the report.

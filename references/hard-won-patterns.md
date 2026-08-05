@@ -1,7 +1,7 @@
 # Hard-won patterns (2026-07/08: Klonk + Fermax intercom)
 
 Patterns paid for with printed plastic, false-green gates, or multi-hour pad-position
-thrash. Cite these in reviews. Pair with `design-rules-checklist.md` (R1–R7 floor).
+thrash. Cite these in reviews. Pair with `design-rules-checklist.md` (R1–R8 floor).
 
 ## 1. Seat pad ≠ clamp (retention physics)
 

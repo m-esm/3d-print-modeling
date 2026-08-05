@@ -140,6 +140,75 @@ With part cache + assembly/fitmap cache both hot, a no-change `python3 src/build
 finnish-doors fell from ~300 s to **~0.8 s** (100% hit rate). That is the iteration target
 for any project that has grown a fitmap gate.
 
+## Running clearance: the third blindness (booleans, presses, and now rubs)
+
+Booleans miss presses (fitmap fixed that); fitmap at the neutral pose misses **thin
+running gaps that only appear at certain rotation phases**. finnish-doors (2026-07-25,
+user: "why did no gate warn about the sensor sleeves"): gear teeth swept 0.03 mm off a
+driver board and 0.10 off a sensor body at specific phases, with every boolean sweep
+green (they don't touch, so nothing failed). The fix that stuck:
+
+1. **The pose-sweep grids also gate MINIMUM RUNNING GAP**, not just non-overlap: every
+   gear/moving part must keep ≥ ~0.30 mm to housing and ≥ ~0.25 mm to fragile fixed
+   parts (sensors, boards) at every pose in the grid (coupled drive poses + free 360°
+   spins, one step per tooth). Print a "tightest running clearances" table every run so
+   drift is visible before it's a red.
+2. **Floors trace to a named RUNNING-CLEARANCE budget block in params** (`tol_*`,
+   `run_axial_clear`, `run_radial_clear`) — the same params that size the housing's free
+   envelopes and sleeve windows. Never hardcode a motion margin in a gate or a builder;
+   when gate and geometry read the same param, they can't disagree.
+3. **Designed running fits get named `CLEAR_WHITELIST` entries** (band thrust seat,
+   journal bores, ratchet-ring pocket) — pair-specific, with the designed value, same
+   honesty rules as the contact whitelist.
+4. **Every rotating part needs an explicit axial locator.** The audit found a
+   worm-driven wheel with NO axial thrust seat at all — the worm mesh pushes it axially
+   and nothing located it. If you can't name the thrust surface, it doesn't exist.
+5. **For worm/helical meshes, the honest tightness metric is the ROTATIONAL PLAY
+   WINDOW** (rotate-until-contact both ways at every throw angle; healthy ≥ ~1.5°), not
+   a phase-locked minimum gap — a single-phase gap number can look fine while another
+   phase binds.
+
+## Typed joint contracts: mechanize the insertion + fastener audits
+
+The insertion-path and fastener audits above start as "eyes + section cuts". On a
+mature assembly, promote them to a standing gate suite (finnish-doors `jointspec.py` /
+`joints.py` / `joint_checks.py`): **every printed-part interface gets one typed contract
+entry** declaring its locator (what positions it), fastener stack math (screw length vs
+clamped stack + nut engagement), capture (what stops it moving axially/radially), tool
+access (driver reaches the head), seating/load probes, and a **swept insertion sim**
+(translate the part along its real insertion axis with the parts present at that stage
+of assembly; expect zero overlap the whole way).
+
+- **Probes run against the world-posed assembly GLB**, not the print-frame STLs — parts
+  are exported in print orientation, and a contract checked in the wrong frame passes
+  vacuously. Pin the door-face/world datum once and derive it (deepest-seat rule), don't
+  restate it per contract.
+- **Keep a required-structural-joints list**: a gate that fails when a load-bearing
+  interface has NO contract, so new parts can't ship uncontracted.
+- **Mutation-test the gate engine itself** (`tests/`): deliberately break a contract and
+  assert the gate fails. A gate suite that can't fail is decoration — the same class of
+  bug as the blanket whitelist.
+- Payoff observed: the descent-path/insertion sims retro-caught bugs that had shipped
+  before the contracts existed, then blocked two more the week they landed.
+
+## Release pipeline: gates run in ORDER, and the slicer is the last gate
+
+On a project with several gates, `make all` runs them in a **deliberate order, because
+gates consume files earlier stages generate** (don't rewrite it as unordered
+prerequisites): gate self-tests → build (fit/contact audit inside) → design invariants
+→ joint contracts → wallcheck → static interference → pose sweeps (overlap + running
+clearance) → mesh-specific checks → slicer export → **headless slice check** → docs.
+Every stage exits nonzero on failure.
+
+The **slice check** (BambuStudio CLI over every exported .3mf — see the
+foreign-cad-import skill for the CLI mechanics) catches the failure class only the
+slicer sees: its FIRST run on a "fully verified" project found 0.4 mm groove cheeks
+that sliced to EMPTY LAYERS — a hard print failure no boolean, wallcheck, or render had
+ever flagged, because the plate had simply never been sliced. Two process traps:
+quick/partial fit targets typically do NOT rebuild geometry (run a normal build first if
+geometry changed), and a stale exporter re-plating renamed/deleted parts is the
+staleness class the bambu skill warns about — re-export after any part-list change.
+
 ## Design-invariant checks: unit tests for geometry
 
 User-approved features get silently deleted by later, unrelated edits. It happened

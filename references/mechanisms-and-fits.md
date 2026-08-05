@@ -229,3 +229,22 @@ factor in FDM-gear testing (5×+ life); design the running clearance as a grease
 Vertical stubs snap at the shoulder root under bending. Glue-slip printed journal + **stock
 screw core** across the Z-layer plane (no metal mod to the race) survived where pure PLA
 and press-fit races cracked.
+
+## Glued flange joints: spigot register, flat faces, glue in shear
+
+When a printed flange CA-glues to another printed part (a journal sleeve under a gear),
+the joint geometry matters more than the glue (finnish-doors, three revisions to get here):
+
+- **Glue FLAT face to FLAT face, centered by a SPIGOT RING in a shallow counterbore**
+  (e.g. Ø14.2×0.4 ring into a Ø14.5×0.5 counterbore around the bore). Make the spigot
+  ~0.1 mm axially SHY of the counterbore depth so the flat faces clamp — a spigot that
+  bottoms first holds the glue faces apart.
+- **Anti-pattern 1, flange-in-recess:** glue squish fills the register recess and the
+  joint rides squish, not faces.
+- **Anti-pattern 2, boss-and-cup:** a raised boss on the gear face un-flattens the print
+  face (the gear no longer prints flat), and the cup collar buried itself in an
+  un-counterbored mating floor — hidden for two days by a blanket fitmap whitelist.
+  Counterbore every floor a glued collar passes, and keep whitelists pair-specific.
+- Keep the glue in SHEAR for torque; axial peel is the weak direction, so back it up
+  with a mechanical capture (ledge, screw, or the part it's trapped under) when the
+  joint sees peel.

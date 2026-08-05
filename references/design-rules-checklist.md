@@ -4,8 +4,10 @@ Hard rules for every parametric-CAD project in this workspace (Python + trimesh/
 FDM printing on a Bambu A1, 0.4 mm nozzle, PLA/PETG). Every one of these was paid for with
 a failed print or a physically un-assemblable part that passed all renders. Read this
 BEFORE touching geometry. Cite rules by number in reviews and fix ledgers (e.g. "violates
-R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
-`docs/AGENT-LOOP.md`; this file is the cross-project floor.
+R3.1"). R1 printability, R2 clearances, R3 assembly, R4 fasteners, R5 load paths, R6
+bought parts, R7 verification, R8 source of truth. Repo-specific gates, axis glossary,
+and commands live in `AGENTS.md` and `docs/AGENT-LOOP.md`; this file is the
+cross-project floor.
 
 ## R1. Printability
 
@@ -49,6 +51,13 @@ R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
 - **R2.6 Reach is multi-axis.** A 1-D Z (or length-only) reach gate can pass while the
   pad/foot track has moved off in X/Y. Gate track ⊆ pad extents, body clearance, and
   mesh kiss at the press pose across the stroke.
+- **R2.7 Gate MINIMUM RUNNING GAP across the pose sweep, not just non-overlap.** Boolean
+  sweeps pass at 0.02 mm of air; the print rubs. Every moving part keeps a floor gap to
+  housings (~0.30) and to fragile fixed parts like sensors (~0.25) at EVERY pose, with the
+  floors traced to a named clearance-budget block in params (never a magic number in the
+  gate). Designed running fits (journals, thrust seats) get named CLEAR_WHITELIST entries.
+  Corollary: every rotating part needs an explicit AXIAL locator (thrust seat/boss) — a
+  helical or worm mesh thrusts axially, and "the pocket roughly holds it" is not a design.
 
 ## R3. Assembly (can it physically go together?)
 
@@ -68,6 +77,11 @@ R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
   pocket mouths cannot share one rigid finger on a single slide direction — use a
   separate plug+screw or a second motion. Do not thrash pad XY when the failure is
   missing preload.
+- **R3.7 Every printed-part interface gets a typed JOINT CONTRACT in the gate suite**:
+  locator, fastener stack math, axial/radial capture, tool access, seating probes, and a
+  swept insertion sim — run against the world-posed assembly, not the print-frame STL.
+  The insertion audit is a standing gate, not a one-time eyeball. Mutation-test the gate
+  engine itself (break a contract on purpose; the gate must fail).
 
 ## R4. Screws and nuts
 
@@ -141,3 +155,20 @@ R3.1"). Repo-specific gates, axis glossary, and commands live in `AGENTS.md` and
 - **R7.7 Probe solid under seats.** Pad-over-window must hit solid frame volume just
   below the deck (thin slab ∩ frame), not only Y-overlap with a pocket that is open
   from the side under a solid roof.
+- **R7.8 Headless-slice every exported plate as a gate.** The slicer sees a failure
+  class nothing upstream does: sub-line-width cheeks slicing to EMPTY LAYERS, floating
+  first layers, support explosions. Its first run on a "verified" project caught 0.4 mm
+  groove cheeks that vanished entirely in slicing.
+
+## R8. Source of truth and derived artifacts
+
+- **R8.1 No hand-maintained artifacts, ever, unless the user explicitly asks.** Never
+  introduce a manually curated mapping/registry/parallel list/table that duplicates
+  information living elsewhere (param→node maps, part indexes, doc tables restating
+  code). Derive it from the source of truth at build time, or generate it and add a
+  staleness gate that fails the build when it drifts. Found one already existing? Flag
+  it and propose the derived replacement.
+- **R8.2 One params surface per product** (`params.py`), edited there and only there.
+  Derived/rebound values are computed, presented read-only, never re-typed. Prefer
+  reflection/instrumentation (trace which params each part actually consumed during a
+  build) over hand-annotating what-affects-what.

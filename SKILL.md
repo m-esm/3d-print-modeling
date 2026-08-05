@@ -278,6 +278,37 @@ the same helpers got reimplemented three-plus times.
   user wants the nudge. Finished designed parts and assemblies never move there;
   mechlib is semi-primitives only.
 
+## Params are an editing surface (derive maps, never hand-maintain them)
+
+Once `params.py` is the single design surface, two practices follow (finnish-doors,
+2026-08, both now standing user rules):
+
+- **NO hand-maintained artifacts.** Never introduce a manually curated map/registry/
+  parallel table that duplicates information living elsewhere — the canonical failure
+  was a hand-authored param→component prefix map for the viewer that drifted the day it
+  was written. Derive from the source of truth, or generate + gate staleness (a check
+  that fails the build when the generated artifact no longer matches). This is R8 in
+  the checklist; flag existing hand-maintained artifacts and propose the derived
+  replacement.
+- **Generate the param→geometry map by REFLECTION, not annotation.** Instrument the
+  build so each part records which params it actually read (a recording namespace
+  around the params import + per-builder scoping), and emit the map as a build output
+  (`web/param_node_map.json`). A `PARAM_TRACE=1` build + an audit command
+  (`python -m param_reflect --audit`) proves coverage: unread params and unmapped nodes
+  go to zero instead of to a TODO list. The same instrumentation can log CSG cut
+  provenance (which param produced which boolean), which turns "what do I edit to move
+  this pocket" into a lookup.
+
+**The viewer can then become a param EDITOR, not just a display.** Pattern that works
+(a small param server beside the static file server): the panel shows params grouped by
+the component you have selected (via the generated map), edits apply as
+**compare-and-swap span-rewrites of `params.py`** (byte spans captured at parse time;
+comments and formatting preserved; a concurrent hand-edit fails the CAS instead of
+clobbering), a batch Apply triggers the quick rebuild (`SKIP_FITS=1`) with staged
+progress streamed back, and **undo/redo history lives server-side** so it survives
+browser reloads, devices, and commits. Derived/rebound params render read-only with
+their effective values — the editor never lets you type over a value the build computes.
+
 ## Toolchain (all via `pip3 install --user`, or a venv for build123d)
 
 - **trimesh 4.12 + manifold3d**, boolean CSG (`engine="manifold"`): holes, pockets, bores,
@@ -375,6 +406,20 @@ densest scenes).
 (polls Last-Modified), the user watches changes land live. `shoot.py` is a separate headless
 context for *your* verification.
 
+**Viewer growth path.** The bundled static `viewer_glb.html` is the right default and stays
+the portable reference. Two upgrades earn their cost as a project matures:
+- **A MARKS panel for geometry handoff** (finnish-doors): click a surface → world-coord
+  probe pin; 2-click and 4-click boxes (AABB of hits, flat axes auto-expanded to a target
+  part's span); copy exports rounded JSON. The user marks "cut here / this boss" on the
+  model and pastes coordinates into chat — this kills most of the spatial-language
+  ambiguity that the orientation protocol below otherwise pays for.
+- **Graduating to an app-framework viewer** (finnish-doors moved to a Next.js app once it
+  had two products, a param editor, fits/joints panels, and doc pages): worth it only at
+  that scale. The contracts stay identical either way — the build regenerates
+  `assembly.pose.json` / `fit_report.json` every run (never hardcode ratios in the viewer),
+  a coverage gate in `checks.py` fails when a GLB node matches no viewer-tree entry, and
+  `shoot.py` drives whichever viewer serves the page.
+
 **Viewer gotchas baked into the templates** (carried from real breakage):
 - Three.js `3MFLoader` ignores Bambu's multi-file production extension → bake to GLB instead.
 - trimesh writes colors as *vertex* colors, so `material.color` is unreliable, classify parts
@@ -444,6 +489,13 @@ its `web/viewer_glb.html` + the sidecar writer in `src/build.py`):
   audits from `references/assembly-verification.md`. "Watertight and looks right from six
   angles" has shipped unassemblable parts to plastic more than once; the gate is what
   catches lugs bigger than notches, sealed pockets, and freewheeling bores.
+- **On a mature assembly, run the gates in their pipeline ORDER** (`make all`): gate
+  self-tests → build → invariants → joint contracts → wallcheck → static interference →
+  pose sweeps (overlap AND minimum running gap — boolean sweeps are blind to thin rubs;
+  floors come from a named clearance budget in params) → export → **headless slice
+  check** (the slicer catches empty-layer walls nothing upstream sees). Order matters:
+  gates consume files earlier stages generate. See assembly-verification.md "Running
+  clearance", "Typed joint contracts", and "Release pipeline".
 - **Retention self-check** (before claiming a cover/lid clamps): named preload path;
   solid under pad (slab ∩ frame); driver wells empty after late unions; no opposite-mouth
   single-slide fantasy. See hard-won-patterns §1 and assembly-verification "Retention".
@@ -552,8 +604,9 @@ skill copy, the skill copy wins, sync it.
 ## Deeper references (read on demand)
 
 - **`references/design-rules-checklist.md`**, the numbered cross-project hard-rule floor
-  (R1-R7, incl. R2.6 reach, R3.6 pad≠clamp, R5.6 strength util, R6.3–6.4 OEM/bought mesh,
-  R7.6 freeze/pose, R7.7 solid-under-seat) seeded into each repo as `docs/DESIGN-RULES.md`.
+  (R1-R8, incl. R2.7 running-gap sweeps, R3.6 pad≠clamp, R3.7 joint contracts, R5.6
+  strength util, R6.3–6.4 OEM/bought mesh, R7.6 freeze/pose, R7.8 slice gate, R8
+  no-hand-maintained-artifacts) seeded into each repo as `docs/DESIGN-RULES.md`.
 - **`references/hard-won-patterns.md`**, 2026-07/08 Klonk + Fermax intercom patterns:
   clamp physics, honest whitelists, OEM datums, display springs, multi-axis reach, freeze
   archives, mesh strength util, late-union keepouts, viewer pose freshness, printed-pin
@@ -567,7 +620,9 @@ skill copy, the skill copy wins, sync it.
   screws/nut traps, bearings, one-way clutches, motor coupling, service cartridges +
   stall-homing hard stops, closed loops of discrete links (tracks/chains/belts).
 - **`references/assembly-verification.md`**, the pre-export gate: interference + motion-sweep
-  audit, FIT MAP, insertion/torque paths, **retention and whitelist audits**, datum/reach
+  audit, FIT MAP, **running-clearance sweeps + thrust locators**, **typed joint contracts
+  (mechanized insertion/fastener audits, mutation-tested)**, the ordered release pipeline +
+  slice gate, insertion/torque paths, retention and whitelist audits, datum/reach
   gates, freeze interfaces, strength gates, bought hardware in mesh, multi-agent pre-print
   review, spatial-language protocol, render legibility.
 - **`references/csg-robustness.md`**, trimesh/manifold3d playbook (single-call booleans,

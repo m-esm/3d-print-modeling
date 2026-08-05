@@ -257,6 +257,27 @@ installed." That reasoning is stale, and it's worth correcting before you start 
 The rest of this skill's report/verify/print guidance is engine-agnostic. The notes below describe
 the trimesh path (what these projects used); the same checks apply to build123d output.
 
+## mechlib: check the shared library BEFORE writing any geometry helper
+
+`mechlib` (`~/Desktop/myprojects/mechlib`, https://github.com/m-esm/mechlib) is the shared
+package of project-agnostic semi-primitives for the trimesh+manifold3d path: primitives,
+sweeps, print-safe cutters (teardrop bores, nut slots, dovetails), gear/worm/planetary
+generators, ratchets, threads, fasteners, closures, patterns, text, mesh utils, plate
+packing, STEP export. It was mined from finnish-doors, finnish-windows, and parviz after
+the same helpers got reimplemented three-plus times.
+
+- **Install per consumer project:** `pip3 install -e ~/Desktop/myprojects/mechlib`
+  (editable, tracks the checkout).
+- **Before writing a gear generator, cutter, thread, or mesh helper, check mechlib first:**
+  README API tables + interactive gallery with live parameter playground at
+  https://m-esm.github.io/mechlib/. The helper you're about to write probably exists.
+- **Promote, don't fork:** when a helper or mechanism generator in a consumer project
+  proves project-agnostic and print-validated, RECOMMEND to the user promoting it into
+  mechlib (explicit parameters only; a promotion adds a README row, a minimal gallery
+  demo, and a test). Raise this proactively when a part reaches "validated" state — the
+  user wants the nudge. Finished designed parts and assemblies never move there;
+  mechlib is semi-primitives only.
+
 ## Toolchain (all via `pip3 install --user`, or a venv for build123d)
 
 - **trimesh 4.12 + manifold3d**, boolean CSG (`engine="manifold"`): holes, pockets, bores,

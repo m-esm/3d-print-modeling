@@ -297,14 +297,31 @@ joint clamped:
    re-applied; probe the well empty of solid.
 5. **Do not delete a working screwed plug** to "simplify" without a replacement preload.
 
-## Honest DESIGNED_CONTACTS / whitelist floors
+## Honest DESIGNED_CONTACTS / seat-kiss vs body dig
 
 A pair allowlist without a volume floor hides digs: `paddle × servo` blessed 54 mm³ of
-paddle-into-gear-cap. Prefer:
+paddle-into-gear-cap; `NESTED_OK cover × servo_carrier` blessed **630 mm³** of roof-through-
+underface as `designed_nest` with gap −0.85 mm (finnish-doors intercom, 2026-08-06).
+
+**Face-to-face kiss is fine. Solid-into-solid is not.** Implement that distinction:
+
+```
+seats = named envelopes (boss pad cylinders, crush ribs, horn floor, …)
+dig_total = boolean intersection volume(A, B)
+dig_seat  = volume( (A∩B) ∩ union(seats) )
+dig_body  = dig_total − dig_seat
+ok = dig_seat ≤ seat_cap  AND  dig_body ≤ body_cap   # body_cap ~ 0.5 mm³
+```
+
+Prefer:
 
 - Positive gates: swept clear 0.000, west-face clear ≥ margin, horn kiss ≤ 0.05 mm³.
-- Pair-specific allows only for the intended seat, with a dig ceiling.
-- Unmask → fix every red the same turn (second defects often hide under the same blanket).
+- Seat-spec pairs with the split above; freckle pairs with an explicit mm³ ceiling
+  (never an uncapped skip).
+- Unmask → fix every red the same turn (second defects often hide under the same blanket;
+  sensor-board dig appeared the same day as the carrier nest unmask).
+- Mutation-test the classifier (kiss-in-seat green, dig-outside-seat red) so the gate
+  cannot silently go soft.
 
 ## Datum and reach gates (kinematics)
 

@@ -55,10 +55,16 @@ for meshes. See "Pick the engine first" below.
    the dims back for confirmation before geometry depends on them. Guessed motors, boards,
    keypads, and battery holders have each cost a reprint. Measured library + checklist:
    **`references/components-verified.md`**.
-7. **Seat pad ≠ clamp; whitelist floors; OEM datums.** A pad that only rests has no
-   preload. Blanket `A×B` designed-contacts hide digs. Hang mates off the measured OEM
-   stack. Model coils/horns that occupy volume. Full pattern set:
-   **`references/hard-won-patterns.md`** (2026 intercom/Klonk).
+7. **Seat pad ≠ clamp; seat-kiss ≠ body dig; OEM datums.** A pad that only rests has no
+   preload. Blanket `A×B` / `NESTED_OK` designed-contacts hide digs (630 mm³ cover×carrier
+   passed as "nests in bay"). Face kiss inside named seat envelopes is allowed; solid
+   dig outside those envelopes fails. Hang mates off the measured OEM stack. Model
+   coils/horns/board components that occupy volume. Full pattern set:
+   **`references/hard-won-patterns.md`** (2026 intercom/Klonk, incl. residual deck,
+   derived packaging envelopes, relief orphans).
+8. **Derive packaging cuts from the printed mate's datums**, not a hardcoded bare-bought
+   envelope. Stack under residual underface or tile thin-shell free spans. One body after
+   CSG reliefs (no dig islands).
 
 ## Project layout (set this up before modeling, not after)
 
@@ -404,7 +410,9 @@ densest scenes).
 
 **Don't reopen the user's browser tab.** The viewer auto-reloads `assembly.glb` on rebuild
 (polls Last-Modified), the user watches changes land live. `shoot.py` is a separate headless
-context for *your* verification.
+context for *your* verification. **Never ask the user to hard-refresh.** Every new/edited
+static page includes live reload (`live_reload.js` or framework HMR); serve with
+`Cache-Control: no-store`.
 
 **Viewer growth path.** The bundled static `viewer_glb.html` is the right default and stays
 the portable reference. Two upgrades earn their cost as a project matures:
@@ -499,6 +507,9 @@ its `web/viewer_glb.html` + the sidecar writer in `src/build.py`):
 - **Retention self-check** (before claiming a cover/lid clamps): named preload path;
   solid under pad (slab ∩ frame); driver wells empty after late unions; no opposite-mouth
   single-slide fantasy. See hard-won-patterns §1 and assembly-verification "Retention".
+- **Contact self-check**: no `NESTED_OK` / uncapped pair bless; seat envelopes + body dig
+  cap; freckle pairs have mm³ ceilings; packaging pocket derived from mate datums;
+  residual/thin-shell still green. See hard-won-patterns §2, §15–18.
 - **Kinematics self-check**: OEM datum, multi-axis reach, pose.json regenerated with GLB,
   DESIGNED contacts volume-capped or replaced by clear gates.
 - **Strength self-check** for hand-breakable features: mesh A/S + multi-load util with SF,
@@ -596,21 +607,24 @@ hard rules must live IN each repo. When starting (or first touching) a 3D projec
 3. Briefs dispatched to external CLIs must name the file explicitly and put the repo's
    geometry gates in the acceptance criteria.
 
-The checklist is the numbered floor (R1 printability, R2 clearances/collisions, R3
-insertion paths, R4 screws/nuts, R5 torque paths, R6 bought parts, R7 verification);
-the references below carry the full rationale. If a project's copy drifts from the
-skill copy, the skill copy wins, sync it.
+The checklist is the numbered floor (R1 printability, R2 clearances/seat-kiss, R3
+insertion paths, R4 screws/nuts, R5 torque paths, R6 bought parts, R7 verification,
+R8 derived artifacts); the references below carry the full rationale. If a project's
+copy drifts from the skill copy, the skill copy wins, sync it.
 
 ## Deeper references (read on demand)
 
 - **`references/design-rules-checklist.md`**, the numbered cross-project hard-rule floor
-  (R1-R8, incl. R2.7 running-gap sweeps, R3.6 pad≠clamp, R3.7 joint contracts, R5.6
-  strength util, R6.3–6.4 OEM/bought mesh, R7.6 freeze/pose, R7.8 slice gate, R8
-  no-hand-maintained-artifacts) seeded into each repo as `docs/DESIGN-RULES.md`.
+  (R1-R8, incl. R2.4 seat-kiss/body dig, R2.7 running-gap, R2.8 derived envelopes,
+  R3.6 pad≠clamp, R3.7 joint contracts, R5.6 strength util, R6.3–6.4 OEM/bought mesh,
+  R7.6 freeze/pose, R7.8 slice gate, R8 no-hand-maintained-artifacts) seeded into each
+  repo as `docs/DESIGN-RULES.md`.
 - **`references/hard-won-patterns.md`**, 2026-07/08 Klonk + Fermax intercom patterns:
-  clamp physics, honest whitelists, OEM datums, display springs, multi-axis reach, freeze
-  archives, mesh strength util, late-union keepouts, viewer pose freshness, printed-pin
-  cores. Read when retention, servo mates, or false-green gates bite.
+  clamp physics, seat-kiss vs body dig (no nest whitelist), OEM datums, display springs,
+  multi-axis reach, freeze archives, mesh strength util, late-union keepouts, residual
+  deck vs thin-shell, derived packaging envelopes, CSG relief orphans, display-board
+  digs, live reload + skill paths. Read when retention, servo mates, or false-green
+  gates bite.
 - **`references/fdm-design-rules.md`**, print orientation, self-supporting geometry (45° roofs,
   run-outs), min feature size, support strategy, PLA vs PETG, hoop stress for pressure parts,
   warp/adhesion, the "slicer settings beat geometry hollowing" lesson.
@@ -622,7 +636,7 @@ skill copy, the skill copy wins, sync it.
 - **`references/assembly-verification.md`**, the pre-export gate: interference + motion-sweep
   audit, FIT MAP, **running-clearance sweeps + thrust locators**, **typed joint contracts
   (mechanized insertion/fastener audits, mutation-tested)**, the ordered release pipeline +
-  slice gate, insertion/torque paths, retention and whitelist audits, datum/reach
+  slice gate, insertion/torque paths, seat-kiss classifier, retention audits, datum/reach
   gates, freeze interfaces, strength gates, bought hardware in mesh, multi-agent pre-print
   review, spatial-language protocol, render legibility.
 - **`references/csg-robustness.md`**, trimesh/manifold3d playbook (single-call booleans,

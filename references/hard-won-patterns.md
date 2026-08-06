@@ -24,21 +24,33 @@ same slide, so pad-only south is structurally free.
 - Restoring a proven screwed plug beats another pad-geometry rev. Archive why the plug was
   removed; do not delete preload paths to "simplify" without a replacement.
 
-## 2. Honest designed-contact whitelists
+## 2. Honest designed-contact whitelists (and the nest anti-pattern)
 
 **Symptom:** pairwise dig 50+ mm³ "passes" because `paddle × servo` (or similar) is listed
-as DESIGNED; real geometry is wrong.
+as DESIGNED; real geometry is wrong. Worse class: `NESTED_OK` / "carrier nests in cover bay"
+marks dig=630 mm³ + gap=−0.85 mm as `ok: true` / `designed_nest`.
 
 **Cause:** a pair-name whitelist blesses *any* intersection volume for that pair, including
-paddle body into gear cap, web through ears, etc.
+paddle body into gear cap, web through ears, boxed cradle roof through residual underface.
 
 **Rules:**
 
-- Whitelist only the *intended kiss* with a volume floor (e.g. horn×spline ≤ 0.05 mm³),
-  never a broad parent pair that can hide digs elsewhere on the same meshes.
+- **Never bless a whole PART pair blank-wide.** Face-to-face kiss is fine; solid-into-solid
+  is not. Those are different classes of contact.
+- **Seat-kiss vs body-dig split (the honest model):**
+  1. Name seat *envelopes* (cylinders/boxes at boss pads, crush ribs, horn floor).
+  2. `dig_total = ivol(A, B)`.
+  3. `dig_seat = ivol(A∩B, union(seats))`.
+  4. `dig_body = dig_total − dig_seat`.
+  5. Allow `dig_seat ≤ seat_cap` (FDM freckle, often ~0.5–2 mm³ per pad).
+  6. Fail `dig_body > body_cap` (usually ~0.5 mm³).
+- Uncapped freckle pairs still get a **volume ceiling** (`FRECKLE_CAP_MM3`), never a skip.
 - Prefer explicit positive gates: "paddle clears servo swept 0.000 over N poses,"
   "west-face clears gear-cap ≥ 1.5 mm," instead of a blanket allow.
-- Unmasking a whitelist often reveals a second pre-existing red; fix both the same turn.
+- Unmasking a whitelist often reveals a second pre-existing red (sensor board, tray); fix
+  both the same turn. Unit-test the classifier with synthetic boxes so the gate can fail.
+- Reference implementation: finnish-doors `intercom/fit_policy.py` +
+  `tests/test_intercom_fit_policy.py` (2026-08-06).
 
 ## 3. Datum off the real stack, not a convenient face
 
@@ -218,16 +230,108 @@ the foot arrives.
 ## 14. File size and module shape (agent context)
 
 Agents re-read megafiles every turn. Soft target 200–500 lines for a builder/gate module;
-smell >1000. When you edit a fat file, peel a coherent part/region into a sibling module
-the same change; keep params coarser (one params surface per product). Thin facades so
-`import build` / gates stay stable.
+soft ceiling ~700; smell >1000. When you edit a fat file, peel a coherent part/region into
+a sibling module the same change (or immediate follow-up commit). One printed part or
+packaging region ≈ one module; one FEATURE ≈ one named helper (reflection param maps
+resolve at function granularity — inline cuts are invisible). Keep params coarser (one
+params surface per product). Thin facades so `import build` / gates stay stable. Do not
+splinter into dozens of tiny stubs or explode params mid-feature.
+
+## 15. Derive clearance envelopes from the printed mate
+
+**Symptom:** cover "servo pocket" sized to a hardcoded bare-servo ceil (28.83 mm); boxed
+carrier roof at 30.65 digs ~630 mm³ of residual underface; gates green under nest whitelist.
+
+**Cause:** pocket XY/Z hung off the *bought* body or a one-off number, not the printed
+cradle outer + load paths + park stop + ear span.
+
+**Rules:**
+
+- Clearance cuts for a screwed-on / nested print are derived from that part's datums
+  (`carrier_box_datums` → outer AABB + `CARRIER_COVER_CLR` + ear-span + stop AABB).
+- Hardcoded `servo_ceil = 28.43 + 0.40` (or any magic envelope) is a smell the day a box
+  roof, path, or ear is added.
+- Bought-part display digs (MG90S ears past the printed outer) still expand the *same*
+  derived pocket — one function, not a second ad-hoc slab.
+- Gate "pocket clears mate": body dig outside seats must be zero after the cut lands.
+
+## 16. Residual deck vs thin-shell (underface packaging)
+
+**Symptom:** underface is a continuous structural plate (good for free-span face membranes);
+component or carrier roof needs headroom; full residual punch creates a 20×35 mm thin face
+cluster that fails the thin-shell audit.
+
+**Rules:**
+
+- Structural underface first; bay hollows **below** it; openings recess only to the
+  component ceiling so residual thickness remains for face backing (`COVER_UNDERFACE_T`,
+  residual floor ~1.8 mm where possible).
+- Stack budget: printed roof top + running clear ≤ underface residual ceiling
+  (`under_z1 − residual_deck`). If the stack will not fit, thin floor/roof of the
+  *mate* before punching residual to free membrane.
+- When residual *must* be punched over a wide bay: tile free spans so the **shorter**
+  side of every thin cluster ≤ `COVER_THIN_SPAN_MAX` (ribs across X and/or Y; long
+  narrow slots pass, square bays fail).
+- Local full-residual punches only for small ports (mic, pot) whose short side is already
+  under the thin-shell cap.
+- Protect cradle rails/bosses when cutting component pockets or late unions sever them
+  into orphan bodies.
+
+## 17. CSG relief orphans and "keep largest body"
+
+**Symptom:** after cylindrical well/nest reliefs, `one-body:part` fails or a ~60 mm³ island
+south of the wall digs the button cap while the main body looks fine.
+
+**Cause:** full wall + subtract circles leaves chord islands outside the design outer;
+`concatenate` of multi-body keeps the dig.
+
+**Rules:**
+
+- Prefer segmented walls that route around keep-out circles over "full slab then carve."
+- After reliefs: split, keep the **primary body only** when islands are sub-feature debris
+  (document the volume floor). Do not `concatenate` dig islands back into the print mesh.
+- Shave everything outside the design outer AABB when cylindrical cuts can leak past it.
+- Ear pads / bridges that share a corridor with a moving part (cap, paddle): size pad_r
+  from the moving envelope, not a fixed 1.4 that still clips at press.
+
+## 18. Display-board digs are real packaging
+
+**Symptom:** freckle whitelist `cover × elec_board_sensor` at 2 mm³ while dig is 318 mm³;
+PCB itself clears; mic/pot/SOIC occupy residual underface and east wall.
+
+**Cause:** display meshes for bought boards include 3D components; face ports alone do not
+clear underface solid or wall thickness.
+
+**Rules:**
+
+- Gate dig of display boards with honest freckle caps (or seat envelopes for rails/boss
+  only). Green at 300 mm³ is a nest whitelist in disguise.
+- Component clearance = residual recess over board footprint (tiled) + local punches for
+  pot/mic + wall notches where components overhang into structural walls.
+- Keep cradle rails and pilot bosses as keepouts when subtracting the pocket.
+
+## 19. Live reload is mandatory; skill paths are absolute
+
+**Symptom:** agent asks user to hard-refresh; skill read fails with "SKILL.md does not exist."
+
+**Rules:**
+
+- Every browser-visible page auto-updates (framework HMR or `live_reload.js` polling
+  Last-Modified). Never tell the user to hard-refresh; never reopen their tab after HTML
+  edits. Static serve: `Cache-Control: no-store`.
+- Global skills live under `~/.claude/skills/<name>/SKILL.md` (or skill submodules). Project
+  skills live under `<repo>/.claude/skills/`. Use the absolute path from the skill list —
+  do not rewrite a global skill into the workspace path.
 
 ## Quick self-check before "done" on retention or drive mates
 
 1. What feature provides **preload** (not just contact)?
-2. Is every DESIGNED pair limited by volume or a positive clear gate?
+2. Is every DESIGNED pair seat-kiss-capped or a positive clear gate (no nest whitelist)?
 3. Is the kinematic datum the OEM stack, measured?
-4. Are bought coils/pins/horns in the mesh for the poses that matter?
+4. Are bought coils/pins/horns/boards in the mesh for the poses that matter?
 5. Do freeze archives still match printed plastic?
 6. Would a late gusset/union reseal this hole?
-7. Did the viewer artifacts regenerate?
+7. Did the viewer artifacts regenerate (GLB + pose)?
+8. Is the clearance envelope derived from the printed mate's datums?
+9. Residual deck: still ≥ floor, or free spans tiled ≤ thin-shell max?
+10. One printable body (no relief islands)?

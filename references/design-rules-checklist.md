@@ -41,11 +41,14 @@ cross-project floor.
 - **R2.3 Sweep everything that moves across FULL travel to the hard stops** (stall
   angles, not the software limit), against the fixed parts, the parent group, AND the
   other clamshell half / lid. A neutral-pose check misses most collisions.
-- **R2.4 Whitelists stay honest.** Only named, designed contacts (seats, presses, meshes)
-  get whitelisted, pair-specific, with a reason AND a volume/clearance floor when the
-  pair can dig elsewhere. A blanket `partA × partB` allow that swallows 50 mm³ of real
-  dig-in is a bug factory (paddle×servo, cover×tray). Prefer positive clear gates.
-  A new unexpected contact is a failing gate to investigate, never a whitelist entry to add.
+- **R2.4 Whitelists stay honest: seat-kiss, not nest.** Only named, designed contacts
+  (seats, presses, meshes) get allowed, pair-specific, with a reason AND a volume floor.
+  A blanket `partA × partB` or `NESTED_OK` allow that swallows 50–600 mm³ of real dig-in
+  is a bug factory (paddle×servo, cover×carrier "nests in bay"). Face-to-face kiss is not
+  the same as solid-into-solid. Prefer seat envelopes: dig inside pad/boss cylinders is
+  freckle-capped; dig *outside* those envelopes is body dig and fails hard (cap ~0.5 mm³).
+  Prefer positive clear gates. A new unexpected contact is a failing gate to investigate,
+  never a whitelist entry to add.
 - **R2.5 Every clearance is a named parameter** with a one-line why. No magic 0.25s
   scattered in geometry code.
 - **R2.6 Reach is multi-axis.** A 1-D Z (or length-only) reach gate can pass while the
@@ -58,6 +61,13 @@ cross-project floor.
   gate). Designed running fits (journals, thrust seats) get named CLEAR_WHITELIST entries.
   Corollary: every rotating part needs an explicit AXIAL locator (thrust seat/boss) — a
   helical or worm mesh thrusts axially, and "the pocket roughly holds it" is not a design.
+- **R2.8 Clearance envelopes derive from the printed mate.** A cover pocket for a
+  screwed-on cradle is sized from that cradle's outer AABB + ear span + park stop + named
+  clear, not a hardcoded bare-servo ceil. Stack budget under residual underface: roof top
+  + running clear ≤ residual ceiling; thin the mate's floor/roof before punching the face
+  into a free-span membrane. When residual must be opened wide, tile free spans so the
+  shorter side of each thin cluster ≤ the thin-shell max; protect rails/bosses so cuts do
+  not create orphan bodies.
 
 ## R3. Assembly (can it physically go together?)
 
